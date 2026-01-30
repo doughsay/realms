@@ -30,7 +30,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/realms /var/log/realms
+ReadWritePaths=/opt/realms /var/log/realms /var/lib/realms
 
 # Resource limits
 LimitNOFILE=65535
