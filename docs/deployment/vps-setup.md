@@ -265,7 +265,7 @@ sudo firewall-cmd --reload
 
 ## Step 10: Configure Sudo Permissions
 
-Allow the deployment user to restart the service without a password:
+Allow the deployment user to manage services and view logs without a password:
 
 ```bash
 sudo visudo -f /etc/sudoers.d/realms
@@ -274,12 +274,10 @@ sudo visudo -f /etc/sudoers.d/realms
 Add the following line (replace `YOUR_USERNAME` with your actual username):
 
 ```
-YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl start realms, /usr/bin/systemctl stop realms, /usr/bin/systemctl restart realms, /usr/bin/systemctl status realms, /usr/bin/systemctl is-active * realms, /usr/bin/journalctl -u realms*
+YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/journalctl
 ```
 
-**Note**: The `is-active * realms` pattern allows flags like `--quiet`. The `journalctl` entry includes a wildcard to allow various options like `-n 20 --no-pager`.
-
-**Note**: The `journalctl` entry includes a wildcard to allow various options like `-n 20 --no-pager`.
+**Note**: This allows all systemctl and journalctl commands without password prompts.
 
 Save and exit. Test:
 
