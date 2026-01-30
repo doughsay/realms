@@ -41,10 +41,12 @@ sudo dnf install -y caddy
 sudo mkdir -p /opt/realms/app
 sudo mkdir -p /etc/realms
 sudo mkdir -p /var/log/realms
+sudo mkdir -p /var/lib/realms/dets
 
 # Set ownership
 sudo chown -R $USER:$USER /opt/realms
 sudo chown -R $USER:$USER /var/log/realms
+sudo chown -R $USER:$USER /var/lib/realms
 ```
 
 ## Step 3: Install mise and Elixir/Erlang
@@ -139,7 +141,14 @@ mix phx.gen.secret
 # Copy the output and paste it as SECRET_KEY_BASE in /etc/realms/env created below
 ```
 
-Create the environment file with production configuration:
+You can either copy the template and edit it:
+
+```bash
+sudo cp /opt/realms/app/docs/deployment/templates/env.template /etc/realms/env
+sudo vim /etc/realms/env
+```
+
+Or create the environment file from scratch with production configuration:
 
 ```bash
 sudo vim /etc/realms/env
@@ -157,6 +166,10 @@ MIX_ENV=prod
 # Database Configuration (no password needed with trust authentication)
 DATABASE_URL=ecto://realms:@localhost/realms_prod
 POOL_SIZE=10
+
+# DETS Storage Path
+# Directory for persistent player message histories
+DETS_PATH=/var/lib/realms/dets
 
 # Security - Generate with: cd /opt/realms/app && mix phx.gen.secret
 SECRET_KEY_BASE=REPLACE_WITH_GENERATED_SECRET
@@ -417,6 +430,23 @@ pg_dump -U realms -d realms_prod -h localhost > backup.sql
 psql -U realms -d realms_prod -h localhost < backup.sql
 ```
 
+### Player History Data Management
+
+Player message histories are stored in DETS files at `/var/lib/realms/dets/`:
+
+```bash
+# Backup player histories
+tar -czf player_histories_backup_$(date +%Y%m%d).tar.gz -C /var/lib/realms/dets .
+
+# Restore player histories (stop service first)
+sudo systemctl stop realms
+tar -xzf player_histories_backup_YYYYMMDD.tar.gz -C /var/lib/realms/dets
+sudo systemctl start realms
+
+# View DETS file info
+ls -lh /var/lib/realms/dets/
+```
+
 ### Manual Rollback
 
 If you need to rollback to a previous version:
@@ -543,7 +573,7 @@ Your VPS is now configured for automatic deployments! Every push to the `main` b
 - Configure monitoring/alerting
 - Review logs regularly
 
-**Important Files:**
+**Important Files and Directories:**
 
 - App directory: `/opt/realms/app`
 - Environment config: `/etc/realms/env`
@@ -551,3 +581,4 @@ Your VPS is now configured for automatic deployments! Every push to the `main` b
 - Systemd service: `/etc/systemd/system/realms.service`
 - Logs: `/var/log/realms/`
 - Caddy config: `/etc/caddy/Caddyfile`
+- Player histories (DETS): `/var/lib/realms/dets/`

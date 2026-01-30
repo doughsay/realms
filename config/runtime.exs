@@ -23,6 +23,15 @@ end
 config :realms, RealmsWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Configure DETS storage path
+# In development: uses priv/dets (will be recreated if deleted)
+# In production: use DETS_PATH env var to point to persistent storage
+dets_path =
+  System.get_env("DETS_PATH") ||
+    Path.join([Application.app_dir(:realms, "priv"), "dets"])
+
+config :realms, :dets_path, dets_path
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

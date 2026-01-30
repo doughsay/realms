@@ -28,7 +28,7 @@ defmodule Realms.PlayerHistoryStore do
   # Server callbacks
   @impl true
   def init(_opts) do
-    dets_path = Path.join([Application.app_dir(:realms, "priv"), "dets"])
+    dets_path = Application.get_env(:realms, :dets_path)
     File.mkdir_p!(dets_path)
     dets_file = Path.join(dets_path, "player_histories.dets")
 
