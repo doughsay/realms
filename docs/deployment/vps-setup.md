@@ -274,8 +274,10 @@ sudo visudo -f /etc/sudoers.d/realms
 Add the following line (replace `YOUR_USERNAME` with your actual username):
 
 ```
-YOUR_USERNAME ALL=(ALL) NOPASSWD: /bin/systemctl start realms, /bin/systemctl stop realms, /bin/systemctl restart realms, /bin/systemctl status realms, /bin/systemctl is-active realms, /usr/bin/journalctl -u realms*
+YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/systemctl start realms, /usr/bin/systemctl stop realms, /usr/bin/systemctl restart realms, /usr/bin/systemctl status realms, /usr/bin/systemctl is-active realms, /usr/bin/journalctl -u realms*
 ```
+
+**Note**: On CentOS/RHEL, `systemctl` is located at `/usr/bin/systemctl` (not `/bin/systemctl`).
 
 **Note**: The `journalctl` entry includes a wildcard to allow various options like `-n 20 --no-pager`.
 
