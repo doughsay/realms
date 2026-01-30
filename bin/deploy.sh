@@ -76,7 +76,7 @@ mix release --overwrite || error_exit "Release build failed"
 
 # Run migrations using release binary
 log "Running database migrations"
-_build/prod/rel/realms/bin/realms eval "Realms.Release.migrate()" || error_exit "Database migration failed"
+_build/prod/rel/realms/bin/migrate || error_exit "Database migration failed"
 
 # Restart service
 log "Restarting $SERVICE_NAME service"
