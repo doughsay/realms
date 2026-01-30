@@ -15,12 +15,10 @@ This guide walks through the one-time setup needed on a fresh VPS to enable auto
 # Update system packages
 sudo dnf update -y
 
-# Enable EPEL repository (Extra Packages for Enterprise Linux)
-sudo dnf install -y epel-release
-
 # Install development tools and dependencies
 sudo dnf groupinstall -y "Development Tools"
 sudo dnf install -y \
+  vim \
   git \
   curl \
   wget \
@@ -28,8 +26,7 @@ sudo dnf install -y \
   postgresql-server \
   postgresql-contrib \
   openssl \
-  policycoreutils-python-utils \
-  lsof
+  ncurses-devel
 
 # Install Caddy
 sudo dnf install -y dnf-plugins-core
@@ -37,7 +34,20 @@ sudo dnf copr enable -y @caddy/caddy
 sudo dnf install -y caddy
 ```
 
-## Step 2: Install mise and Elixir/Erlang
+## Step 2: Create Directory Structure
+
+```bash
+# Create application directories
+sudo mkdir -p /opt/realms/app
+sudo mkdir -p /etc/realms
+sudo mkdir -p /var/log/realms
+
+# Set ownership
+sudo chown -R $USER:$USER /opt/realms
+sudo chown -R $USER:$USER /var/log/realms
+```
+
+## Step 3: Install mise and Elixir/Erlang
 
 The repository includes a `.tool-versions` file that specifies Elixir and Erlang versions. We'll use mise (modern asdf alternative) to install them.
 
@@ -46,10 +56,6 @@ The repository includes a `.tool-versions` file that specifies Elixir and Erlang
 curl https://mise.run | sh
 echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc
 source ~/.bashrc
-
-# Navigate to app directory (we'll create it first)
-sudo mkdir -p /opt/realms/app
-sudo chown $USER:$USER /opt/realms
 
 # Clone the repository
 cd /opt/realms
@@ -61,19 +67,6 @@ mise install
 
 # Verify installation
 elixir --version
-```
-
-## Step 3: Create Directory Structure
-
-```bash
-# Create application directories
-sudo mkdir -p /opt/realms/app
-sudo mkdir -p /etc/realms
-sudo mkdir -p /var/log/realms
-
-# Set ownership
-sudo chown -R $USER:$USER /opt/realms
-sudo chown -R $USER:$USER /var/log/realms
 ```
 
 ## Step 4: Configure PostgreSQL
@@ -93,7 +86,7 @@ Configure authentication by editing the pg_hba.conf file:
 
 ```bash
 # Edit PostgreSQL authentication config
-sudo nano /var/lib/pgsql/data/pg_hba.conf
+sudo vim /var/lib/pgsql/data/pg_hba.conf
 ```
 
 Find the lines for local connections and change `ident` to `trust` for passwordless local authentication:
@@ -137,10 +130,19 @@ psql -U realms -d realms_prod -h localhost
 
 ## Step 5: Create Environment File
 
+Generate the secret key base:
+
+```bash
+cd /opt/realms/app
+mix deps.get
+mix phx.gen.secret
+# Copy the output and paste it as SECRET_KEY_BASE in /etc/realms/env created below
+```
+
 Create the environment file with production configuration:
 
 ```bash
-sudo nano /etc/realms/env
+sudo vim /etc/realms/env
 ```
 
 Add the following content (replace values as needed):
@@ -158,14 +160,6 @@ POOL_SIZE=10
 
 # Security - Generate with: cd /opt/realms/app && mix phx.gen.secret
 SECRET_KEY_BASE=REPLACE_WITH_GENERATED_SECRET
-```
-
-Generate the secret key base:
-
-```bash
-cd /opt/realms/app
-mix phx.gen.secret
-# Copy the output and paste it as SECRET_KEY_BASE in /etc/realms/env
 ```
 
 Set proper permissions:
@@ -202,7 +196,7 @@ sudo cp /opt/realms/app/docs/deployment/templates/systemd-service.template \
 Edit the service file to replace placeholders:
 
 ```bash
-sudo nano /etc/systemd/system/realms.service
+sudo vim /etc/systemd/system/realms.service
 ```
 
 Replace `YOUR_USERNAME` with your actual username. Save and exit.
@@ -216,21 +210,6 @@ sudo systemctl start realms
 sudo systemctl status realms
 ```
 
-If SELinux is enabled (default on CentOS), configure it to allow the service:
-
-```bash
-# Check SELinux status
-getenforce
-
-# If it shows "Enforcing", set proper SELinux contexts
-sudo semanage fcontext -a -t bin_t "/opt/realms/app/_build/prod/rel/realms/erts-.*/bin/.*"
-sudo semanage fcontext -a -t bin_t "/opt/realms/app/_build/prod/rel/realms/bin/.*"
-sudo restorecon -Rv /opt/realms
-
-# Allow network connections (for Phoenix to bind to port 4000)
-sudo setsebool -P httpd_can_network_connect 1
-```
-
 Verify the app is running:
 
 ```bash
@@ -242,7 +221,7 @@ curl http://localhost:4000
 Create the Caddyfile configuration:
 
 ```bash
-sudo nano /etc/caddy/Caddyfile
+sudo vim /etc/caddy/Caddyfile
 ```
 
 Replace the contents with (replace `your-domain.com` with your actual domain):
@@ -263,7 +242,8 @@ That's it! Caddy will automatically:
 Reload Caddy to apply the configuration:
 
 ```bash
-sudo systemctl reload caddy
+sudo systemctl enable caddy
+sudo systemctl start caddy
 ```
 
 Verify Caddy is running:
@@ -461,25 +441,15 @@ mix ecto.rollback --step 1
 sudo journalctl -u realms -n 50
 
 # Check if port is already in use
-sudo lsof -i :4000
+sudo ss -tlnp | grep :4000
+# Or if you have lsof installed:
+# sudo lsof -i :4000
 
 # Verify environment file
 cat /etc/realms/env
 
 # Test database connection
 psql -U realms -d realms_prod -h localhost
-
-# Check SELinux denials (CentOS specific)
-sudo ausearch -m avc -ts recent
-# Or check the audit log
-sudo tail -100 /var/log/audit/audit.log | grep denied
-
-# Temporarily disable SELinux to test if it's the issue
-sudo setenforce 0
-sudo systemctl restart realms
-# If it works now, SELinux is blocking it. Re-enable and fix contexts:
-sudo setenforce 1
-sudo restorecon -Rv /opt/realms
 ```
 
 ### Deployment Fails
@@ -497,12 +467,6 @@ df -h
 # Check permissions
 ls -la /opt/realms
 ls -la /var/log/realms
-
-# Check SELinux status (CentOS specific)
-getenforce
-# If SELinux is enforcing, you may need to set proper contexts
-sudo semanage fcontext -a -t usr_t "/opt/realms(/.*)?"
-sudo restorecon -Rv /opt/realms
 ```
 
 ### SSL Certificate Issues
@@ -559,7 +523,7 @@ sudo systemctl enable --now dnf-automatic.timer
 Edit the configuration to apply updates automatically:
 
 ```bash
-sudo nano /etc/dnf/automatic.conf
+sudo vim /etc/dnf/automatic.conf
 ```
 
 Change `apply_updates = no` to `apply_updates = yes` under the `[commands]` section.
