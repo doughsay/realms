@@ -65,19 +65,24 @@ defmodule Realms.PlayerHistoryStore do
         [] -> []
       end
 
-    new_messages = existing ++ [message]
+    # Skip if message already exists
+    if Enum.any?(existing, fn m -> m.id == message.id end) do
+      {:reply, :ok, state}
+    else
+      new_messages = existing ++ [message]
 
-    new_messages =
-      if length(new_messages) > @max_messages do
-        Enum.drop(new_messages, length(new_messages) - @max_messages)
-      else
-        new_messages
-      end
+      new_messages =
+        if length(new_messages) > @max_messages do
+          Enum.drop(new_messages, length(new_messages) - @max_messages)
+        else
+          new_messages
+        end
 
-    :dets.insert(@table_name, {player_id, new_messages})
-    # Force write to disk
-    :dets.sync(@table_name)
-    {:reply, :ok, state}
+      :dets.insert(@table_name, {player_id, new_messages})
+      # Force write to disk
+      :dets.sync(@table_name)
+      {:reply, :ok, state}
+    end
   end
 
   @impl true
