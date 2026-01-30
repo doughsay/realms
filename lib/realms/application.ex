@@ -14,6 +14,7 @@ defmodule Realms.Application do
       {Phoenix.PubSub, name: Realms.PubSub},
       # Start a worker by calling: Realms.Worker.start_link(arg)
       # {Realms.Worker, arg},
+      Realms.PlayerHistoryStore,
       # Start to serve requests, typically the last entry
       RealmsWeb.Endpoint
     ]

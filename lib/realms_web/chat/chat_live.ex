@@ -1,17 +1,24 @@
 defmodule RealmsWeb.ChatLive do
   use RealmsWeb, :live_view
 
+  alias Realms.PlayerHistoryStore
+
   @topic "chat:lobby"
 
   def mount(_params, _session, socket) do
+    player_id = socket.assigns.player_id
+    history = PlayerHistoryStore.get_history(player_id)
+
+    socket =
+      socket
+      |> stream(:messages, history, limit: 100)
+      |> assign(:form, to_form(%{"name" => "", "text" => ""}, as: :message))
+
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Realms.PubSub, @topic)
     end
 
-    {:ok,
-     socket
-     |> stream(:messages, [], limit: 100)
-     |> assign(:form, to_form(%{"name" => "", "text" => ""}, as: :message))}
+    {:ok, socket}
   end
 
   def handle_event("validate", %{"message" => message_params}, socket) do
@@ -38,6 +45,8 @@ defmodule RealmsWeb.ChatLive do
   end
 
   def handle_info({:new_message, message}, socket) do
+    player_id = socket.assigns.player_id
+    PlayerHistoryStore.append_message(player_id, message)
     {:noreply, stream_insert(socket, :messages, message)}
   end
 end

@@ -8,6 +8,7 @@ defmodule RealmsWeb.Router do
     plug :put_root_layout, html: {RealmsWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug RealmsWeb.PlayerSession
   end
 
   pipeline :api do
@@ -19,7 +20,9 @@ defmodule RealmsWeb.Router do
 
     get "/", PageController, :home
 
-    live "/chat", ChatLive
+    live_session :default, on_mount: RealmsWeb.PlayerSession do
+      live "/chat", ChatLive
+    end
   end
 
   # Other scopes may use custom stacks.
