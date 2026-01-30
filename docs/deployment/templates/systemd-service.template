@@ -1,0 +1,39 @@
+[Unit]
+Description=REALMS MUD Server
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+Group=YOUR_USERNAME
+WorkingDirectory=/opt/realms/app
+EnvironmentFile=/etc/realms/env
+
+# Start the application using the release binary
+ExecStart=/opt/realms/app/_build/prod/rel/realms/bin/realms start
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Logging
+StandardOutput=append:/var/log/realms/stdout.log
+StandardError=append:/var/log/realms/stderr.log
+SyslogIdentifier=realms
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/realms /var/log/realms
+
+# Resource limits
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

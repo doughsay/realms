@@ -1,0 +1,32 @@
+# Realms Caddy Configuration
+# This file should be placed at /etc/caddy/Caddyfile
+
+# Replace 'your-domain.com' with your actual domain
+your-domain.com {
+    # Reverse proxy to Phoenix application
+    reverse_proxy localhost:4000
+
+    # Optional: Add custom headers
+    header {
+        # Security headers
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer-when-downgrade"
+    }
+
+    # Optional: Custom logging
+    log {
+        output file /var/log/caddy/realms.log
+        format json
+    }
+
+    # Optional: Enable compression
+    encode gzip zstd
+}
+
+# Caddy automatically handles:
+# - SSL/TLS certificates via Let's Encrypt (HTTPS)
+# - HTTP to HTTPS redirects
+# - Certificate renewals
+# - WebSocket upgrades (for Phoenix LiveView)
+# - Modern TLS configuration
