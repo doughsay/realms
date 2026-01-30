@@ -271,11 +271,13 @@ Allow the deployment user to restart the service without a password:
 sudo visudo -f /etc/sudoers.d/realms
 ```
 
-Add the following line (replace `YOUR_USERNAME`):
+Add the following line (replace `YOUR_USERNAME` with your actual username):
 
 ```
-YOUR_USERNAME ALL=(ALL) NOPASSWD: /bin/systemctl start realms, /bin/systemctl stop realms, /bin/systemctl restart realms, /bin/systemctl status realms
+YOUR_USERNAME ALL=(ALL) NOPASSWD: /bin/systemctl start realms, /bin/systemctl stop realms, /bin/systemctl restart realms, /bin/systemctl status realms, /bin/systemctl is-active realms, /usr/bin/journalctl -u realms*
 ```
+
+**Note**: The `journalctl` entry includes a wildcard to allow various options like `-n 20 --no-pager`.
 
 Save and exit. Test:
 
