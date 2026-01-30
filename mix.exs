@@ -40,8 +40,7 @@ defmodule Realms.MixProject do
     [
       realms: [
         include_executables_for: [:unix],
-        applications: [realms: :permanent],
-        include_erts: false
+        applications: [realms: :permanent]
       ]
     ]
   end
