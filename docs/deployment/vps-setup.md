@@ -169,19 +169,21 @@ sudo chmod 600 /etc/realms/env
 sudo chown $USER:$USER /etc/realms/env
 ```
 
-## Step 6: Copy Deployment Script
+## Step 6: Test Deployment Script
 
-Copy the deployment script template to the VPS:
+The deployment script is located in the repository at `bin/deploy.sh` and is already executable.
 
-```bash
-cp /opt/realms/app/docs/deployment/templates/deployment-script.sh /opt/realms/deploy.sh
-chmod +x /opt/realms/deploy.sh
-```
+> **Note**: The script must be run from within `/opt/realms/app` so mise can activate the correct Elixir/Erlang versions from `.tool-versions`. The script handles this automatically by changing to the app directory at startup.
 
-Test the deployment script:
+Test it:
 
 ```bash
-/opt/realms/deploy.sh
+# Can be run from anywhere - the script will cd to the correct directory
+/opt/realms/app/bin/deploy.sh
+
+# Or run from within the app directory
+cd /opt/realms/app
+./bin/deploy.sh
 ```
 
 ## Step 7: Create Systemd Service
@@ -421,7 +423,7 @@ If you need to rollback to a previous version:
 cd /opt/realms/app
 git log --oneline  # Find the commit to rollback to
 git reset --hard COMMIT_HASH
-/opt/realms/deploy.sh
+/opt/realms/app/bin/deploy.sh
 ```
 
 To rollback migrations:
@@ -543,7 +545,7 @@ Your VPS is now configured for automatic deployments! Every push to the `main` b
 
 - App directory: `/opt/realms/app`
 - Environment config: `/etc/realms/env`
-- Deployment script: `/opt/realms/deploy.sh`
+- Deployment script: `/opt/realms/app/bin/deploy.sh`
 - Systemd service: `/etc/systemd/system/realms.service`
 - Logs: `/var/log/realms/`
 - Caddy config: `/etc/caddy/Caddyfile`

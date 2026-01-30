@@ -41,6 +41,10 @@ set +a
 # Navigate to application directory
 cd "$APP_DIR" || error_exit "Failed to navigate to $APP_DIR"
 
+# Activate mise (needed for non-interactive shells like SSH from GitHub Actions)
+log "Activating mise for tool version management"
+eval "$(~/.local/bin/mise activate bash)" || error_exit "Failed to activate mise"
+
 # Pull latest code
 log "Pulling latest code from origin/main"
 git fetch origin || error_exit "Git fetch failed"
@@ -49,6 +53,10 @@ git reset --hard origin/main || error_exit "Git reset failed"
 # Get current commit
 COMMIT_HASH=$(git rev-parse --short HEAD)
 log "Deploying commit: $COMMIT_HASH"
+
+# Install/update tools from .tool-versions (in case Elixir/Erlang versions changed)
+log "Ensuring correct tool versions are installed"
+mise install || error_exit "Failed to install tools from .tool-versions"
 
 # Install/update dependencies
 log "Installing dependencies"
