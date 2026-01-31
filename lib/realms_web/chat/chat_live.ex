@@ -21,6 +21,11 @@ defmodule RealmsWeb.ChatLive do
       |> stream(:messages, history, limit: 100)
       |> assign(:form, to_form(%{"command" => ""}, as: :command))
 
+    # Subscribe to current room topic
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(player.current_room.id))
+    end
+
     # If history is empty, show room description as first message
     socket =
       if history == [] do
@@ -54,6 +59,7 @@ defmodule RealmsWeb.ChatLive do
   defp parse_command("look"), do: :look
   defp parse_command("exits"), do: :exits
   defp parse_command("help"), do: :help
+  defp parse_command("say" <> message), do: {:say, String.trim(message)}
 
   defp parse_command(command) do
     direction =
@@ -83,6 +89,7 @@ defmodule RealmsWeb.ChatLive do
     help_text = """
     Available commands:
     - Movement: north, south, east, west, northeast, northwest, southeast, southwest, up, down, in, out
+    - say <message>: Chat with players in the same room
     - look: Show current room description
     - exits: List available exits
     - help: Show this message
@@ -91,12 +98,41 @@ defmodule RealmsWeb.ChatLive do
     append_message(socket, :info, help_text)
   end
 
+  defp execute_command({:say, message}, socket) do
+    if String.trim(message) == "" do
+      append_message(socket, :error, "Say what?")
+    else
+      # Broadcast to room - will receive back via PubSub
+      broadcast_say(
+        socket.assigns.current_room.id,
+        socket.assigns.player.name,
+        message
+      )
+
+      socket
+    end
+  end
+
   defp execute_command({:move, direction}, socket) do
+    old_room = socket.assigns.current_room
     player = socket.assigns.player
 
     case Game.move_player(player, direction) do
       {:ok, new_room} ->
-        # Reload player to get updated current_room_id
+        # 1. Broadcast departure to old room (won't receive it ourselves)
+        broadcast_departure(old_room.id, player.name, direction)
+
+        # 2. Switch room subscriptions
+        if connected?(socket) do
+          Phoenix.PubSub.unsubscribe(Realms.PubSub, room_topic(old_room.id))
+          Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(new_room.id))
+        end
+
+        # 3. Broadcast arrival to new room (won't receive it ourselves)
+        reverse_dir = reverse_direction(direction)
+        broadcast_arrival(new_room.id, player.name, reverse_dir)
+
+        # 4. Update state and show new room
         {:ok, updated_player} = Game.get_or_create_player(player.id)
 
         socket
@@ -111,6 +147,23 @@ defmodule RealmsWeb.ChatLive do
 
   defp execute_command({:unknown, command}, socket) do
     append_message(socket, :error, "I don't understand '#{command}'. Type 'help' for commands.")
+  end
+
+  # PubSub Message Handlers
+
+  def handle_info({:say_message, player_name, message}, socket) do
+    content = "#{player_name} says: #{message}"
+    {:noreply, append_message(socket, :say, content)}
+  end
+
+  def handle_info({:player_arrived, player_name, from_direction}, socket) do
+    content = "#{player_name} arrives from the #{from_direction}."
+    {:noreply, append_message(socket, :room_event, content)}
+  end
+
+  def handle_info({:player_departed, player_name, to_direction}, socket) do
+    content = "#{player_name} leaves to the #{to_direction}."
+    {:noreply, append_message(socket, :room_event, content)}
   end
 
   # Helper Functions
@@ -162,8 +215,53 @@ defmodule RealmsWeb.ChatLive do
 
   # Message styling helper for template
   defp message_class(:room), do: "text-primary"
-  defp message_class(:movement), do: "text-success"
+  defp message_class(:say), do: "text-base-content"
+  defp message_class(:room_event), do: "text-info"
   defp message_class(:error), do: "text-error"
   defp message_class(:info), do: "text-info"
   defp message_class(_), do: "text-base-content"
+
+  # PubSub Helpers
+
+  defp room_topic(room_id), do: "room:#{room_id}"
+
+  defp broadcast_say(room_id, player_name, message) do
+    Phoenix.PubSub.broadcast(
+      Realms.PubSub,
+      room_topic(room_id),
+      {:say_message, player_name, message}
+    )
+  end
+
+  defp broadcast_departure(room_id, player_name, direction) do
+    Phoenix.PubSub.broadcast_from(
+      Realms.PubSub,
+      self(),
+      room_topic(room_id),
+      {:player_departed, player_name, direction}
+    )
+  end
+
+  defp broadcast_arrival(room_id, player_name, from_direction) do
+    Phoenix.PubSub.broadcast_from(
+      Realms.PubSub,
+      self(),
+      room_topic(room_id),
+      {:player_arrived, player_name, from_direction}
+    )
+  end
+
+  # Direction reversal for arrival messages
+  defp reverse_direction("north"), do: "south"
+  defp reverse_direction("south"), do: "north"
+  defp reverse_direction("east"), do: "west"
+  defp reverse_direction("west"), do: "east"
+  defp reverse_direction("northeast"), do: "southwest"
+  defp reverse_direction("northwest"), do: "southeast"
+  defp reverse_direction("southeast"), do: "northwest"
+  defp reverse_direction("southwest"), do: "northeast"
+  defp reverse_direction("up"), do: "down"
+  defp reverse_direction("down"), do: "up"
+  defp reverse_direction("in"), do: "out"
+  defp reverse_direction("out"), do: "in"
 end
