@@ -163,38 +163,105 @@ defmodule RealmsWeb.UserAuth do
   end
 
   defp put_token_in_session(conn, token) do
-    put_session(conn, :user_token, token)
+    conn
+    |> put_session(:user_token, token)
+    |> put_session(:live_socket_id, user_session_topic(token))
   end
 
   @doc """
-  Plug for routes that require sudo mode.
+  Disconnects existing sockets for the given tokens.
   """
-  def require_sudo_mode(conn, _opts) do
-    if Accounts.sudo_mode?(conn.assigns.current_scope.user, -10) do
-      conn
-    else
-      conn
-      |> put_flash(:error, "You must re-authenticate to access this page.")
-      |> maybe_store_return_to()
-      |> redirect(to: ~p"/users/log-in")
-      |> halt()
-    end
+  def disconnect_sessions(tokens) do
+    Enum.each(tokens, fn %{token: token} ->
+      RealmsWeb.Endpoint.broadcast(user_session_topic(token), "disconnect", %{})
+    end)
   end
+
+  defp user_session_topic(token), do: "users_sessions:#{Base.url_encode64(token)}"
 
   @doc """
-  Plug for routes that require the user to not be authenticated.
+  Handles mounting and authenticating the current_scope in LiveViews.
+
+  ## `on_mount` arguments
+
+    * `:mount_current_scope` - Assigns current_scope
+      to socket assigns based on user_token, or nil if
+      there's no user_token or no matching user.
+
+    * `:require_authenticated` - Authenticates the user from the session,
+      and assigns the current_scope to socket assigns based
+      on user_token.
+      Redirects to login page if there's no logged user.
+
+  ## Examples
+
+  Use the `on_mount` lifecycle macro in LiveViews to mount or authenticate
+  the `current_scope`:
+
+      defmodule RealmsWeb.PageLive do
+        use RealmsWeb, :live_view
+
+        on_mount {RealmsWeb.UserAuth, :mount_current_scope}
+        ...
+      end
+
+  Or use the `live_session` of your router to invoke the on_mount callback:
+
+      live_session :authenticated, on_mount: [{RealmsWeb.UserAuth, :require_authenticated}] do
+        live "/profile", ProfileLive, :index
+      end
   """
-  def redirect_if_user_is_authenticated(conn, _opts) do
-    if conn.assigns.current_scope do
-      conn
-      |> redirect(to: signed_in_path(conn))
-      |> halt()
+  def on_mount(:mount_current_scope, _params, session, socket) do
+    {:cont, mount_current_scope(socket, session)}
+  end
+
+  def on_mount(:require_authenticated, _params, session, socket) do
+    socket = mount_current_scope(socket, session)
+
+    if socket.assigns.current_scope && socket.assigns.current_scope.user do
+      {:cont, socket}
     else
-      conn
+      socket =
+        socket
+        |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
+
+      {:halt, socket}
     end
   end
 
-  defp signed_in_path(_conn), do: ~p"/"
+  def on_mount(:require_sudo_mode, _params, session, socket) do
+    socket = mount_current_scope(socket, session)
+
+    if Accounts.sudo_mode?(socket.assigns.current_scope.user, -10) do
+      {:cont, socket}
+    else
+      socket =
+        socket
+        |> Phoenix.LiveView.put_flash(:error, "You must re-authenticate to access this page.")
+        |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
+
+      {:halt, socket}
+    end
+  end
+
+  defp mount_current_scope(socket, session) do
+    Phoenix.Component.assign_new(socket, :current_scope, fn ->
+      {user, _} =
+        if user_token = session["user_token"] do
+          Accounts.get_user_by_session_token(user_token)
+        end || {nil, nil}
+
+      Scope.for_user(user)
+    end)
+  end
+
+  @doc "Returns the path to redirect to after log in."
+  # the user was already logged in, redirect to settings
+  def signed_in_path(%Plug.Conn{assigns: %{current_scope: %Scope{user: %Accounts.User{}}}}) do
+    ~p"/users/settings"
+  end
+
+  def signed_in_path(_), do: ~p"/"
 
   @doc """
   Plug for routes that require the user to be authenticated.
@@ -215,23 +282,4 @@ defmodule RealmsWeb.UserAuth do
   end
 
   defp maybe_store_return_to(conn), do: conn
-
-  @doc """
-  on_mount callback to fetch current user and assign to socket
-  """
-  def on_mount(:default, _params, session, socket) do
-    case session do
-      %{"user_token" => user_token} ->
-        case Accounts.get_user_by_session_token(user_token) do
-          {user, _token_inserted_at} ->
-            {:cont, Phoenix.Component.assign(socket, :current_scope, Scope.for_user(user))}
-
-          nil ->
-            {:cont, Phoenix.Component.assign(socket, :current_scope, nil)}
-        end
-
-      _other ->
-        {:cont, Phoenix.Component.assign(socket, :current_scope, nil)}
-    end
-  end
 end

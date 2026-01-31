@@ -11,8 +11,11 @@ defmodule RealmsWeb.GameLive do
     if is_nil(player_id) do
       {:ok, assign(socket, :player_id, nil)}
     else
-      case Game.get_or_create_player(player_id) do
-        {:ok, player} ->
+      case Game.get_player(player_id) do
+        nil ->
+          {:ok, assign(socket, :player_id, nil)}
+
+        player ->
           history = PlayerHistoryStore.get_history(player_id)
 
           socket =
@@ -35,9 +38,6 @@ defmodule RealmsWeb.GameLive do
             end
 
           {:ok, socket}
-
-        {:error, _reason} ->
-          {:ok, assign(socket, :player_id, nil)}
       end
     end
   end
@@ -136,7 +136,7 @@ defmodule RealmsWeb.GameLive do
         broadcast_arrival(new_room.id, player.name, reverse_dir)
 
         # 4. Update state and show new room
-        {:ok, updated_player} = Game.get_or_create_player(player.id)
+        updated_player = Game.get_player!(player.id)
 
         socket
         |> assign(:player, updated_player)

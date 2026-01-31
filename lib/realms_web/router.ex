@@ -18,13 +18,20 @@ defmodule RealmsWeb.Router do
     plug :accepts, ["json"]
   end
 
+  scope "/", RealmsWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :default,
+      on_mount: [{RealmsWeb.UserAuth, :require_authenticated}, RealmsWeb.PlayerSession] do
+      live "/", GameLive
+      live "/players", PlayerManagementLive
+    end
+
+    post "/players/:id/play", PlayerSessionController, :play_as
+  end
+
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:realms, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
 
     scope "/dev" do
@@ -38,30 +45,27 @@ defmodule RealmsWeb.Router do
   ## Authentication routes
 
   scope "/", RealmsWeb do
-    pipe_through [:browser, :redirect_if_user_is_authenticated]
-
-    get "/users/register", UserRegistrationController, :new
-    post "/users/register", UserRegistrationController, :create
-  end
-
-  scope "/", RealmsWeb do
     pipe_through [:browser, :require_authenticated_user]
 
-    live_session :authenticated, on_mount: [RealmsWeb.UserAuth, RealmsWeb.PlayerSession] do
-      live "/", GameLive
-      live "/players", PlayerManagementLive
+    live_session :require_authenticated_user,
+      on_mount: [{RealmsWeb.UserAuth, :require_authenticated}] do
+      live "/users/settings", UserLive.Settings, :edit
+      live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
     end
 
-    get "/users/settings", UserSettingsController, :edit
-    put "/users/settings", UserSettingsController, :update
-    get "/users/settings/confirm-email/:token", UserSettingsController, :confirm_email
+    post "/users/update-password", UserSessionController, :update_password
   end
 
   scope "/", RealmsWeb do
     pipe_through [:browser]
 
-    get "/users/log-in", UserSessionController, :new
-    get "/users/log-in/:token", UserSessionController, :confirm
+    live_session :current_user,
+      on_mount: [{RealmsWeb.UserAuth, :mount_current_scope}] do
+      live "/users/register", UserLive.Registration, :new
+      live "/users/log-in", UserLive.Login, :new
+      live "/users/log-in/:token", UserLive.Confirmation, :new
+    end
+
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
   end

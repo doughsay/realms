@@ -39,8 +39,11 @@
       </.form>
     </div>
   <% else %>
-    <div class="h-full flex items-center justify-center bg-base-300">
-      <p class="text-base-content">Player session not initialized</p>
+    <div class="h-full flex flex-col items-center justify-center bg-base-300 gap-4">
+      <p class="text-lg text-base-content">No character selected</p>
+      <.link href={~p"/players"} class="btn btn-primary">
+        Choose a Character
+      </.link>
     </div>
   <% end %>
 </Layouts.game>

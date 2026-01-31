@@ -54,16 +54,19 @@ defmodule RealmsWeb.CoreComponents do
     <div
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
-      phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
       class="toast toast-top toast-center z-50"
       {@rest}
     >
-      <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "alert-info",
-        @kind == :error && "alert-error"
-      ]}>
+      <div
+        phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}-alert")}
+        id={"#{@id}-alert"}
+        class={[
+          "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap cursor-pointer",
+          @kind == :info && "alert-info",
+          @kind == :error && "alert-error"
+        ]}
+      >
         <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
         <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
         <div>

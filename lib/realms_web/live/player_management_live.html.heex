@@ -12,15 +12,17 @@
         id="player-form"
         phx-change="validate"
         phx-submit="create"
-        class="flex gap-2"
+        class="flex gap-2 items-start"
       >
-        <.input
-          field={@form[:name]}
-          type="text"
-          placeholder="Character name"
-          autocomplete="off"
-          class="flex-1"
-        />
+        <div class="flex-1">
+          <.input
+            field={@form[:name]}
+            type="text"
+            placeholder="Character name"
+            autocomplete="off"
+            class="input input-bordered w-full"
+          />
+        </div>
         <.button variant="primary" phx-disable-with="Creating...">
           Create Character
         </.button>
@@ -61,6 +63,13 @@
                   </p>
                 </div>
                 <div class="flex gap-2">
+                  <.link
+                    href={~p"/players/#{player.id}/play"}
+                    method="post"
+                    class="btn btn-primary btn-sm"
+                  >
+                    Play
+                  </.link>
                   <button
                     phx-click="edit"
                     phx-value-id={player.id}

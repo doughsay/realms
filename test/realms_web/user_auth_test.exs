@@ -1,6 +1,7 @@
 defmodule RealmsWeb.UserAuthTest do
   use RealmsWeb.ConnCase, async: true
 
+  alias Phoenix.LiveView
   alias Realms.Accounts
   alias Realms.Accounts.Scope
   alias RealmsWeb.UserAuth
@@ -23,6 +24,7 @@ defmodule RealmsWeb.UserAuthTest do
     test "stores the user token in the session", %{conn: conn, user: user} do
       conn = UserAuth.log_in_user(conn, user)
       assert token = get_session(conn, :user_token)
+      assert get_session(conn, :live_socket_id) == "users_sessions:#{Base.url_encode64(token)}"
       assert redirected_to(conn) == ~p"/"
       assert Accounts.get_user_by_session_token(token)
     end
@@ -72,6 +74,15 @@ defmodule RealmsWeb.UserAuthTest do
       assert max_age == @remember_me_cookie_max_age
     end
 
+    test "redirects to settings when user is already logged in", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> assign(:current_scope, Scope.for_user(user))
+        |> UserAuth.log_in_user(user)
+
+      assert redirected_to(conn) == ~p"/users/settings"
+    end
+
     test "writes a cookie if remember_me was set in previous session", %{conn: conn, user: user} do
       conn = conn |> fetch_cookies() |> UserAuth.log_in_user(user, %{"remember_me" => "true"})
       assert get_session(conn, :user_token) == conn.cookies[@remember_me_cookie]
@@ -113,6 +124,17 @@ defmodule RealmsWeb.UserAuthTest do
       refute Accounts.get_user_by_session_token(user_token)
     end
 
+    test "broadcasts to the given live_socket_id", %{conn: conn} do
+      live_socket_id = "users_sessions:abcdef-token"
+      RealmsWeb.Endpoint.subscribe(live_socket_id)
+
+      conn
+      |> put_session(:live_socket_id, live_socket_id)
+      |> UserAuth.log_out_user()
+
+      assert_receive %Phoenix.Socket.Broadcast{event: "disconnect", topic: ^live_socket_id}
+    end
+
     test "works even if user is already logged out", %{conn: conn} do
       conn = conn |> fetch_cookies() |> UserAuth.log_out_user()
       refute get_session(conn, :user_token)
@@ -149,6 +171,9 @@ defmodule RealmsWeb.UserAuthTest do
       assert conn.assigns.current_scope.user.authenticated_at == user.authenticated_at
       assert get_session(conn, :user_token) == user_token
       assert get_session(conn, :user_remember_me)
+
+      assert get_session(conn, :live_socket_id) ==
+               "users_sessions:#{Base.url_encode64(user_token)}"
     end
 
     test "does not authenticate if data is missing", %{conn: conn, user: user} do
@@ -185,16 +210,90 @@ defmodule RealmsWeb.UserAuthTest do
     end
   end
 
-  describe "require_sudo_mode/2" do
-    test "allows users that have authenticated in the last 10 minutes", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> fetch_flash()
-        |> assign(:current_scope, Scope.for_user(user))
-        |> UserAuth.require_sudo_mode([])
+  describe "on_mount :mount_current_scope" do
+    setup %{conn: conn} do
+      %{conn: UserAuth.fetch_current_scope_for_user(conn, [])}
+    end
 
-      refute conn.halted
-      refute conn.status
+    test "assigns current_scope based on a valid user_token", %{conn: conn, user: user} do
+      user_token = Accounts.generate_user_session_token(user)
+      session = conn |> put_session(:user_token, user_token) |> get_session()
+
+      {:cont, updated_socket} =
+        UserAuth.on_mount(:mount_current_scope, %{}, session, %LiveView.Socket{})
+
+      assert updated_socket.assigns.current_scope.user.id == user.id
+    end
+
+    test "assigns nil to current_scope assign if there isn't a valid user_token", %{conn: conn} do
+      user_token = "invalid_token"
+      session = conn |> put_session(:user_token, user_token) |> get_session()
+
+      {:cont, updated_socket} =
+        UserAuth.on_mount(:mount_current_scope, %{}, session, %LiveView.Socket{})
+
+      assert updated_socket.assigns.current_scope == nil
+    end
+
+    test "assigns nil to current_scope assign if there isn't a user_token", %{conn: conn} do
+      session = conn |> get_session()
+
+      {:cont, updated_socket} =
+        UserAuth.on_mount(:mount_current_scope, %{}, session, %LiveView.Socket{})
+
+      assert updated_socket.assigns.current_scope == nil
+    end
+  end
+
+  describe "on_mount :require_authenticated" do
+    test "authenticates current_scope based on a valid user_token", %{conn: conn, user: user} do
+      user_token = Accounts.generate_user_session_token(user)
+      session = conn |> put_session(:user_token, user_token) |> get_session()
+
+      {:cont, updated_socket} =
+        UserAuth.on_mount(:require_authenticated, %{}, session, %LiveView.Socket{})
+
+      assert updated_socket.assigns.current_scope.user.id == user.id
+    end
+
+    test "redirects to login page if there isn't a valid user_token", %{conn: conn} do
+      user_token = "invalid_token"
+      session = conn |> put_session(:user_token, user_token) |> get_session()
+
+      socket = %LiveView.Socket{
+        endpoint: RealmsWeb.Endpoint,
+        assigns: %{__changed__: %{}, flash: %{}}
+      }
+
+      {:halt, updated_socket} = UserAuth.on_mount(:require_authenticated, %{}, session, socket)
+      assert updated_socket.assigns.current_scope == nil
+    end
+
+    test "redirects to login page if there isn't a user_token", %{conn: conn} do
+      session = conn |> get_session()
+
+      socket = %LiveView.Socket{
+        endpoint: RealmsWeb.Endpoint,
+        assigns: %{__changed__: %{}, flash: %{}}
+      }
+
+      {:halt, updated_socket} = UserAuth.on_mount(:require_authenticated, %{}, session, socket)
+      assert updated_socket.assigns.current_scope == nil
+    end
+  end
+
+  describe "on_mount :require_sudo_mode" do
+    test "allows users that have authenticated in the last 10 minutes", %{conn: conn, user: user} do
+      user_token = Accounts.generate_user_session_token(user)
+      session = conn |> put_session(:user_token, user_token) |> get_session()
+
+      socket = %LiveView.Socket{
+        endpoint: RealmsWeb.Endpoint,
+        assigns: %{__changed__: %{}, flash: %{}}
+      }
+
+      assert {:cont, _updated_socket} =
+               UserAuth.on_mount(:require_sudo_mode, %{}, session, socket)
     end
 
     test "redirects when authentication is too old", %{conn: conn, user: user} do
@@ -203,39 +302,15 @@ defmodule RealmsWeb.UserAuthTest do
       user_token = Accounts.generate_user_session_token(user)
       {user, token_inserted_at} = Accounts.get_user_by_session_token(user_token)
       assert DateTime.compare(token_inserted_at, user.authenticated_at) == :gt
+      session = conn |> put_session(:user_token, user_token) |> get_session()
 
-      conn =
-        conn
-        |> fetch_flash()
-        |> assign(:current_scope, Scope.for_user(user))
-        |> UserAuth.require_sudo_mode([])
+      socket = %LiveView.Socket{
+        endpoint: RealmsWeb.Endpoint,
+        assigns: %{__changed__: %{}, flash: %{}}
+      }
 
-      assert redirected_to(conn) == ~p"/users/log-in"
-
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "You must re-authenticate to access this page."
-    end
-  end
-
-  describe "redirect_if_user_is_authenticated/2" do
-    setup %{conn: conn} do
-      %{conn: UserAuth.fetch_current_scope_for_user(conn, [])}
-    end
-
-    test "redirects if user is authenticated", %{conn: conn, user: user} do
-      conn =
-        conn
-        |> assign(:current_scope, Scope.for_user(user))
-        |> UserAuth.redirect_if_user_is_authenticated([])
-
-      assert conn.halted
-      assert redirected_to(conn) == ~p"/"
-    end
-
-    test "does not redirect if user is not authenticated", %{conn: conn} do
-      conn = UserAuth.redirect_if_user_is_authenticated(conn, [])
-      refute conn.halted
-      refute conn.status
+      assert {:halt, _updated_socket} =
+               UserAuth.on_mount(:require_sudo_mode, %{}, session, socket)
     end
   end
 
@@ -285,6 +360,28 @@ defmodule RealmsWeb.UserAuthTest do
 
       refute conn.halted
       refute conn.status
+    end
+  end
+
+  describe "disconnect_sessions/1" do
+    test "broadcasts disconnect messages for each token" do
+      tokens = [%{token: "token1"}, %{token: "token2"}]
+
+      for %{token: token} <- tokens do
+        RealmsWeb.Endpoint.subscribe("users_sessions:#{Base.url_encode64(token)}")
+      end
+
+      UserAuth.disconnect_sessions(tokens)
+
+      assert_receive %Phoenix.Socket.Broadcast{
+        event: "disconnect",
+        topic: "users_sessions:dG9rZW4x"
+      }
+
+      assert_receive %Phoenix.Socket.Broadcast{
+        event: "disconnect",
+        topic: "users_sessions:dG9rZW4y"
+      }
     end
   end
 end

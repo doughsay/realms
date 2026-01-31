@@ -153,43 +153,18 @@ defmodule Realms.Game do
   # Player functions
 
   @doc """
-  Gets or creates a player by session UUID.
-  Creates new players in Town Square with auto-generated name.
-  Updates last_seen_at on each call.
-  Returns player with current_room preloaded.
+  Gets a player by ID with current room and user preloaded.
+  Returns nil if not found.
   """
-  def get_or_create_player(session_player_id) do
-    case Repo.get(Player, session_player_id) do
-      nil ->
-        town_square = get_room_by_name("Town Square")
-
-        if is_nil(town_square) do
-          {:error, :no_starting_room}
-        else
-          short_id = session_player_id |> String.split("-") |> List.first()
-
-          case create_player(%{
-                 id: session_player_id,
-                 name: "Adventurer_#{short_id}",
-                 current_room_id: town_square.id,
-                 last_seen_at: DateTime.utc_now()
-               }) do
-            {:ok, player} -> {:ok, Repo.preload(player, :current_room)}
-            error -> error
-          end
-        end
-
-      player ->
-        case update_player(player, %{last_seen_at: DateTime.utc_now()}) do
-          {:ok, player} -> {:ok, Repo.preload(player, :current_room)}
-          error -> error
-        end
+  def get_player(id) do
+    Player
+    |> Repo.get(id)
+    |> case do
+      nil -> nil
+      player -> Repo.preload(player, [:current_room, :user])
     end
   end
 
-  @doc """
-  Gets a player by ID with current room preloaded.
-  """
   def get_player!(id) do
     Player
     |> Repo.get!(id)

@@ -8,71 +8,6 @@ defmodule RealmsWeb.UserSessionControllerTest do
     %{unconfirmed_user: unconfirmed_user_fixture(), user: user_fixture()}
   end
 
-  describe "GET /users/log-in" do
-    test "renders login page", %{conn: conn} do
-      conn = get(conn, ~p"/users/log-in")
-      response = html_response(conn, 200)
-      assert response =~ "Log in"
-      assert response =~ ~p"/users/register"
-      assert response =~ "Log in with email"
-    end
-
-    test "renders login page with email filled in (sudo mode)", %{conn: conn, user: user} do
-      html =
-        conn
-        |> log_in_user(user)
-        |> get(~p"/users/log-in")
-        |> html_response(200)
-
-      assert html =~ "You need to reauthenticate"
-      refute html =~ "Register"
-      assert html =~ "Log in with email"
-
-      assert html =~
-               ~s(<input type="email" name="user[email]" id="login_form_magic_email" value="#{user.email}")
-    end
-
-    test "renders login page (email + password)", %{conn: conn} do
-      conn = get(conn, ~p"/users/log-in?mode=password")
-      response = html_response(conn, 200)
-      assert response =~ "Log in"
-      assert response =~ ~p"/users/register"
-      assert response =~ "Log in with email"
-    end
-  end
-
-  describe "GET /users/log-in/:token" do
-    test "renders confirmation page for unconfirmed user", %{conn: conn, unconfirmed_user: user} do
-      token =
-        extract_user_token(fn url ->
-          Accounts.deliver_login_instructions(user, url)
-        end)
-
-      conn = get(conn, ~p"/users/log-in/#{token}")
-      assert html_response(conn, 200) =~ "Confirm and stay logged in"
-    end
-
-    test "renders login page for confirmed user", %{conn: conn, user: user} do
-      token =
-        extract_user_token(fn url ->
-          Accounts.deliver_login_instructions(user, url)
-        end)
-
-      conn = get(conn, ~p"/users/log-in/#{token}")
-      html = html_response(conn, 200)
-      refute html =~ "Confirm my account"
-      assert html =~ "Log in"
-    end
-
-    test "raises error for invalid token", %{conn: conn} do
-      conn = get(conn, ~p"/users/log-in/invalid-token")
-      assert redirected_to(conn) == ~p"/users/log-in"
-
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
-               "Magic link is invalid or it has expired."
-    end
-  end
-
   describe "POST /users/log-in - email and password" do
     test "logs the user in", %{conn: conn, user: user} do
       user = set_password(user)
@@ -125,29 +60,18 @@ defmodule RealmsWeb.UserSessionControllerTest do
       assert redirected_to(conn) == "/foo/bar"
     end
 
-    test "emits error message with invalid credentials", %{conn: conn, user: user} do
+    test "redirects to login page with invalid credentials", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log-in?mode=password", %{
           "user" => %{"email" => user.email, "password" => "invalid_password"}
         })
 
-      response = html_response(conn, 200)
-      assert response =~ "Log in"
-      assert response =~ "Invalid email or password"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) == "Invalid email or password"
+      assert redirected_to(conn) == ~p"/users/log-in"
     end
   end
 
   describe "POST /users/log-in - magic link" do
-    test "sends magic link email when user exists", %{conn: conn, user: user} do
-      conn =
-        post(conn, ~p"/users/log-in", %{
-          "user" => %{"email" => user.email}
-        })
-
-      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "If your email is in our system"
-      assert Realms.Repo.get_by!(Accounts.UserToken, user_id: user.id).context == "login"
-    end
-
     test "logs the user in", %{conn: conn, user: user} do
       {token, _hashed_token} = generate_user_magic_link_token(user)
 
@@ -190,13 +114,16 @@ defmodule RealmsWeb.UserSessionControllerTest do
       assert response =~ ~p"/users/log-out"
     end
 
-    test "emits error message when magic link is invalid", %{conn: conn} do
+    test "redirects to login page when magic link is invalid", %{conn: conn} do
       conn =
         post(conn, ~p"/users/log-in", %{
           "user" => %{"token" => "invalid"}
         })
 
-      assert html_response(conn, 200) =~ "The link is invalid or it has expired."
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
+               "The link is invalid or it has expired."
+
+      assert redirected_to(conn) == ~p"/users/log-in"
     end
   end
 
