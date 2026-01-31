@@ -43,8 +43,8 @@ defmodule RealmsWeb.GameLiveTest do
       {:ok, _view, html} = live(conn, "/")
 
       # Should not error and should show game interface
-      assert html =~ "REALMS"
       assert html =~ "Town Square"
+      assert html =~ "game-messages"
     end
 
     test "maintains message history", %{conn: conn} do
@@ -255,7 +255,7 @@ defmodule RealmsWeb.GameLiveTest do
 
       # Should not show any error or new message
       # Just verify it doesn't crash
-      assert html =~ "REALMS"
+      assert html =~ "Town Square"
     end
   end
 
