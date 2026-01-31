@@ -34,13 +34,19 @@
     <div class="space-y-4">
       <h3 class="text-lg font-semibold">Your Characters</h3>
       <%= if @players == [] do %>
-        <p class="text-base-content/60">You don't have any characters yet. Create one above to get started!</p>
+        <p class="text-base-content/60">
+          You don't have any characters yet. Create one above to get started!
+        </p>
       <% else %>
         <div class="space-y-2">
           <%= for player <- @players do %>
             <div class="flex items-center justify-between p-4 bg-base-200 rounded-lg">
               <%= if @editing && @editing.id == player.id do %>
-                <form phx-submit="update" phx-value-id={player.id} class="flex-1 flex items-center gap-2">
+                <form
+                  phx-submit="update"
+                  phx-value-id={player.id}
+                  class="flex-1 flex items-center gap-2"
+                >
                   <input
                     type="text"
                     name="name"
@@ -59,7 +65,10 @@
                 <div class="flex-1">
                   <p class="font-semibold">{player.name}</p>
                   <p class="text-sm text-base-content/60">
-                    Last seen: {Calendar.strftime(player.last_seen_at || player.inserted_at, "%Y-%m-%d %H:%M")}
+                    Last seen: {Calendar.strftime(
+                      player.last_seen_at || player.inserted_at,
+                      "%Y-%m-%d %H:%M"
+                    )}
                   </p>
                 </div>
                 <div class="flex gap-2">

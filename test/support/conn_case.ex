@@ -76,4 +76,46 @@ defmodule RealmsWeb.ConnCase do
   defp maybe_set_token_authenticated_at(token, authenticated_at) do
     Realms.AccountsFixtures.override_token_authenticated_at(token, authenticated_at)
   end
+
+  @doc """
+  Setup helper that registers a user, logs them in, and creates a player for them.
+
+      setup :register_and_log_in_user_with_player
+
+  It stores an updated connection, registered user, and player in the test context.
+  """
+  def register_and_log_in_user_with_player(context) do
+    result = register_and_log_in_user(context)
+    player = Realms.GameFixtures.player_fixture(result.user)
+
+    result
+    |> Map.put(:player, player)
+    |> Map.put(:conn, select_player(result.conn, player))
+  end
+
+  @doc """
+  Sets the player_id in the session to simulate choosing a character.
+
+  Returns an updated conn.
+  """
+  def select_player(conn, player) do
+    Plug.Conn.put_session(conn, :player_id, player.id)
+  end
+
+  @doc """
+  Creates a second user with a player for multi-player testing.
+
+  Returns a map with :user2, :player2, and :conn2.
+  """
+  def create_second_player(_context \\ %{}) do
+    user2 = Realms.AccountsFixtures.user_fixture()
+    player2 = Realms.GameFixtures.player_fixture(user2)
+
+    conn2 =
+      Phoenix.ConnTest.build_conn()
+      |> log_in_user(user2)
+      |> select_player(player2)
+
+    %{user2: user2, player2: player2, conn2: conn2}
+  end
 end

@@ -87,7 +87,7 @@ defmodule RealmsWeb.UserLive.ConfirmationTest do
       form = form(lv, "#login_form", %{"user" => %{"token" => token}})
       render_submit(form)
 
-      conn = follow_trigger_action(form, conn)
+      _conn = follow_trigger_action(form, conn)
 
       assert Accounts.get_user!(user.id).confirmed_at == user.confirmed_at
 

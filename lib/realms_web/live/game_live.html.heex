@@ -15,7 +15,10 @@
             <div class="text-xs text-base-content/30">
               {Calendar.strftime(message.timestamp, "%H:%M:%S")}
             </div>
-            <div phx-no-format class={"whitespace-pre-wrap font-mono #{message_class(message.type)}"}>{message.content}</div>
+            <div
+              phx-no-format
+              class={"whitespace-pre-wrap font-mono #{message_class(message.type)}"}
+            >{message.content}</div>
           </div>
         </div>
       </div>

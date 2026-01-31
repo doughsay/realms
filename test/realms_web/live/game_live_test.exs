@@ -29,6 +29,8 @@ defmodule RealmsWeb.GameLiveTest do
     {:ok, town_square: town_square, tavern: tavern}
   end
 
+  setup :register_and_log_in_user_with_player
+
   describe "mount" do
     test "displays initial room description", %{conn: conn} do
       {:ok, view, html} = live(conn, "/")
@@ -39,7 +41,7 @@ defmodule RealmsWeb.GameLiveTest do
       assert has_element?(view, "#command-form")
     end
 
-    test "creates new player with auto-generated name", %{conn: conn} do
+    test "loads player and shows game interface", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/")
 
       # Should not error and should show game interface
@@ -89,7 +91,7 @@ defmodule RealmsWeb.GameLiveTest do
       {:ok, view1, _html} = live(conn, "/")
 
       # Player 2 in town square (new connection)
-      conn2 = Phoenix.ConnTest.build_conn()
+      %{conn2: conn2} = create_second_player()
       {:ok, view2, _html} = live(conn2, "/")
 
       # Subscribe player 2 to town square to verify broadcast
@@ -109,7 +111,7 @@ defmodule RealmsWeb.GameLiveTest do
       render_submit(view1, :execute_command, %{command: %{command: "north"}})
 
       # Player 2 joins and goes to tavern
-      conn2 = Phoenix.ConnTest.build_conn()
+      %{conn2: conn2} = create_second_player()
       {:ok, view2, _html} = live(conn2, "/")
 
       # Player 2 moves north to join player 1
@@ -135,7 +137,7 @@ defmodule RealmsWeb.GameLiveTest do
   describe "say command" do
     test "broadcasts message to same room", %{conn: conn} do
       {:ok, view1, _html} = live(conn, "/")
-      conn2 = Phoenix.ConnTest.build_conn()
+      %{conn2: conn2} = create_second_player()
       {:ok, view2, _html} = live(conn2, "/")
 
       # Player 1 says something
@@ -153,7 +155,7 @@ defmodule RealmsWeb.GameLiveTest do
       {:ok, view1, _html} = live(conn, "/")
 
       # Player 2 starts in tavern
-      conn2 = Phoenix.ConnTest.build_conn()
+      %{conn2: conn2} = create_second_player()
       {:ok, view2, _html} = live(conn2, "/")
       render_submit(view2, :execute_command, %{command: %{command: "north"}})
 
@@ -192,17 +194,17 @@ defmodule RealmsWeb.GameLiveTest do
       assert html =~ "A bustling town square"
     end
 
-    test "shows other players in room", %{conn: conn} do
+    test "shows other players in room", %{conn: conn, player: player} do
       {:ok, _view1, _html} = live(conn, "/")
 
       # Player 2 joins
-      conn2 = Phoenix.ConnTest.build_conn()
+      %{conn2: conn2} = create_second_player()
       {:ok, view2, _html} = live(conn2, "/")
 
       html = render_submit(view2, :execute_command, %{command: %{command: "look"}})
 
       assert html =~ "Also here:"
-      assert html =~ "Adventurer_"
+      assert html =~ player.name
     end
 
     test "doesn't show 'Also here' when alone", %{conn: conn} do
