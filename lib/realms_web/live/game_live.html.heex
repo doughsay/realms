@@ -1,12 +1,16 @@
 <div class="h-screen flex flex-col p-4">
   <h1 class="text-2xl font-bold mb-4">REALMS</h1>
 
-  <div id="game-messages" phx-hook=".GameScroll" class="flex-1 overflow-y-auto mb-4">
-    <div id="messages" phx-update="stream" class="space-y-2">
+  <div
+    id="game-messages"
+    phx-hook=".GameScroll"
+    class="flex-1 overflow-y-auto mb-4 bg-base-300 p-2 rounded-lg"
+  >
+    <div id="messages" phx-update="stream">
       <div
         :for={{dom_id, message} <- @streams.messages}
         id={dom_id}
-        class="p-2 bg-base-300 rounded"
+        class="py-1"
       >
         <div class="text-xs text-base-content/60">
           {Calendar.strftime(message.timestamp, "%H:%M:%S")}
@@ -42,6 +46,15 @@
   export default {
     mounted() {
       this.scrollToBottom();
+
+      // Focus input when clicking anywhere on the page
+      document.addEventListener('click', (e) => {
+        const input = document.getElementById('command_command');
+        // Only focus if not already focused and not clicking the input itself
+        if (input && document.activeElement !== input) {
+          input.focus();
+        }
+      });
     },
     updated() {
       this.scrollToBottom();

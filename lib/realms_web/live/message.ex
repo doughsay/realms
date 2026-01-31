@@ -6,7 +6,7 @@ defmodule RealmsWeb.Message do
   @enforce_keys [:id, :type, :content, :timestamp]
   defstruct [:id, :type, :content, :timestamp]
 
-  @type message_type :: :room | :say | :room_event | :error | :info
+  @type message_type :: :room | :say | :room_event | :error | :info | :players
   @type t :: %__MODULE__{
           id: String.t(),
           type: message_type(),

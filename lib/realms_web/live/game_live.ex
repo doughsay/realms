@@ -162,22 +162,22 @@ defmodule RealmsWeb.GameLive do
       |> Game.players_in_room()
       |> Enum.reject(&(&1.id == current_player_id))
 
-    players_text =
-      if other_players == [] do
-        ""
-      else
-        player_names = Enum.map_join(other_players, ", ", & &1.name)
-        "\nAlso here: #{player_names}\n"
-      end
-
     content = """
     #{room.name}
     #{room.description}
-    #{players_text}
+
     #{format_exits(room)}
     """
 
-    append_message(socket, Message.new(:room, content))
+    socket = append_message(socket, Message.new(:room, content))
+
+    # Show other players in a separate message with distinct color
+    if other_players != [] do
+      player_names = Enum.map_join(other_players, ", ", & &1.name)
+      append_message(socket, Message.new(:players, "Also here: #{player_names}"))
+    else
+      socket
+    end
   end
 
   defp format_exits(room) do
@@ -204,6 +204,7 @@ defmodule RealmsWeb.GameLive do
   defp message_class(:room), do: "text-primary"
   defp message_class(:say), do: "text-base-content"
   defp message_class(:room_event), do: "text-info"
+  defp message_class(:players), do: "text-accent"
   defp message_class(:error), do: "text-error"
   defp message_class(:info), do: "text-info"
   defp message_class(_), do: "text-base-content"
