@@ -1,8 +1,7 @@
 defmodule RealmsWeb.PlayerManagementLiveTest do
   use RealmsWeb.ConnCase
   import Phoenix.LiveViewTest
-
-  alias Realms.Accounts
+  import Realms.AccountsFixtures
 
   describe "PlayerManagementLive" do
     setup %{conn: conn} do
@@ -17,7 +16,7 @@ defmodule RealmsWeb.PlayerManagementLiveTest do
           description: "A bustling town square."
         })
 
-      user = Accounts.register_user(%{email: "test@example.com"}) |> elem(1)
+      user = user_fixture()
       %{conn: log_in_user(conn, user), user: user}
     end
 

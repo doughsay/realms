@@ -72,6 +72,7 @@ defmodule RealmsWeb.UserSessionControllerTest do
   end
 
   describe "POST /users/log-in - magic link" do
+    @describetag :skip
     test "logs the user in", %{conn: conn, user: user} do
       {token, _hashed_token} = generate_user_magic_link_token(user)
 
@@ -91,6 +92,7 @@ defmodule RealmsWeb.UserSessionControllerTest do
       assert response =~ ~p"/users/log-out"
     end
 
+    @tag :skip
     test "confirms unconfirmed user", %{conn: conn, unconfirmed_user: user} do
       {token, _hashed_token} = generate_user_magic_link_token(user)
       refute user.confirmed_at

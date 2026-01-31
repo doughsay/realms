@@ -63,6 +63,7 @@ defmodule RealmsWeb.Router do
       on_mount: [{RealmsWeb.UserAuth, :mount_current_scope}] do
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
+      # Magic link confirmation temporarily disabled
       live "/users/log-in/:token", UserLive.Confirmation, :new
     end
 

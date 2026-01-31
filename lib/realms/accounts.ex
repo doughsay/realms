@@ -77,7 +77,17 @@ defmodule Realms.Accounts do
   def register_user(attrs) do
     %User{}
     |> User.email_changeset(attrs)
+    |> User.password_changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking user registration changes (email + password).
+  """
+  def change_user_registration(%User{} = user, attrs \\ %{}, opts \\ []) do
+    user
+    |> User.email_changeset(attrs, opts)
+    |> User.password_changeset(attrs, Keyword.put(opts, :hash_password, false))
   end
 
   ## Settings

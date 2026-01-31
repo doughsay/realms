@@ -14,7 +14,8 @@ defmodule Realms.AccountsFixtures do
 
   def valid_user_attributes(attrs \\ %{}) do
     Enum.into(attrs, %{
-      email: unique_user_email()
+      email: unique_user_email(),
+      password: valid_user_password()
     })
   end
 
@@ -30,13 +31,11 @@ defmodule Realms.AccountsFixtures do
   def user_fixture(attrs \\ %{}) do
     user = unconfirmed_user_fixture(attrs)
 
-    token =
-      extract_user_token(fn url ->
-        Accounts.deliver_login_instructions(user, url)
-      end)
-
-    {:ok, {user, _expired_tokens}} =
-      Accounts.login_user_by_magic_link(token)
+    # Confirm user directly (no magic link needed with password auth)
+    {:ok, user} =
+      Realms.Repo.update(
+        Accounts.User.confirm_changeset(user)
+      )
 
     user
   end

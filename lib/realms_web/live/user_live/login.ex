@@ -1,7 +1,7 @@
 defmodule RealmsWeb.UserLive.Login do
   use RealmsWeb, :live_view
 
-  alias Realms.Accounts
+  # alias Realms.Accounts  # Only needed for magic link functionality
 
   @impl true
   def render(assigns) do
@@ -25,6 +25,7 @@ defmodule RealmsWeb.UserLive.Login do
           </.header>
         </div>
 
+        <%!-- Magic link login temporarily disabled
         <div :if={local_mail_adapter?()} class="alert alert-info">
           <.icon name="hero-information-circle" class="size-6 shrink-0" />
           <div>
@@ -57,6 +58,7 @@ defmodule RealmsWeb.UserLive.Login do
         </.form>
 
         <div class="divider">or</div>
+        --%>
 
         <.form
           :let={f}
@@ -108,24 +110,25 @@ defmodule RealmsWeb.UserLive.Login do
     {:noreply, assign(socket, :trigger_submit, true)}
   end
 
-  def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
-    if user = Accounts.get_user_by_email(email) do
-      Accounts.deliver_login_instructions(
-        user,
-        &url(~p"/users/log-in/#{&1}")
-      )
-    end
-
-    info =
-      "If your email is in our system, you will receive instructions for logging in shortly."
-
-    {:noreply,
-     socket
-     |> put_flash(:info, info)
-     |> push_navigate(to: ~p"/users/log-in")}
-  end
-
-  defp local_mail_adapter? do
-    Application.get_env(:realms, Realms.Mailer)[:adapter] == Swoosh.Adapters.Local
-  end
+  # Magic link login temporarily disabled
+  # def handle_event("submit_magic", %{"user" => %{"email" => email}}, socket) do
+  #   if user = Accounts.get_user_by_email(email) do
+  #     Accounts.deliver_login_instructions(
+  #       user,
+  #       &url(~p"/users/log-in/#{&1}")
+  #     )
+  #   end
+  #
+  #   info =
+  #     "If your email is in our system, you will receive instructions for logging in shortly."
+  #
+  #   {:noreply,
+  #    socket
+  #    |> put_flash(:info, info)
+  #    |> push_navigate(to: ~p"/users/log-in")}
+  # end
+  #
+  # defp local_mail_adapter? do
+  #   Application.get_env(:realms, Realms.Mailer)[:adapter] == Swoosh.Adapters.Local
+  # end
 end
