@@ -170,12 +170,27 @@ defmodule RealmsWeb.ChatLive do
 
   defp show_room_description(socket) do
     room = socket.assigns.current_room
+    current_player_id = socket.assigns.player_id
+
+    # Get other players in the room
+    other_players =
+      room.id
+      |> Game.players_in_room()
+      |> Enum.reject(&(&1.id == current_player_id))
+
+    players_text =
+      if other_players == [] do
+        ""
+      else
+        player_names = Enum.map_join(other_players, ", ", & &1.name)
+        "\nAlso here: #{player_names}\n"
+      end
 
     # Format room output
     content = """
     #{room.name}
     #{room.description}
-
+    #{players_text}
     #{format_exits(room)}
     """
 
