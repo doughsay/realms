@@ -30,7 +30,42 @@
       })();
     </script>
   </head>
-  <body>
-    {@inner_content}
+  <body class="h-screen flex flex-col">
+    <div class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-between flex-shrink-0">
+      <div>
+        <%= if @conn.request_path != "/" && @current_scope do %>
+          <.link href={~p"/"} class="flex items-center gap-1 hover:opacity-70">
+            <span>&larr;</span>
+            <span>back to game</span>
+          </.link>
+        <% end %>
+      </div>
+      <ul class="flex items-center gap-4">
+        <%= if @current_scope do %>
+          <li>
+            {@current_scope.user.email}
+          </li>
+          <li>
+            <.link href={~p"/players"}>Characters</.link>
+          </li>
+          <li>
+            <.link href={~p"/users/settings"}>Settings</.link>
+          </li>
+          <li>
+            <.link href={~p"/users/log-out"} method="delete">Log out</.link>
+          </li>
+        <% else %>
+          <li>
+            <.link href={~p"/users/register"}>Register</.link>
+          </li>
+          <li>
+            <.link href={~p"/users/log-in"}>Log in</.link>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+    <div class="flex-1 min-h-0">
+      {@inner_content}
+    </div>
   </body>
 </html>

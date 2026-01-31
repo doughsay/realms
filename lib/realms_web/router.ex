@@ -1,6 +1,8 @@
 defmodule RealmsWeb.Router do
   use RealmsWeb, :router
 
+  import RealmsWeb.UserAuth
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -8,25 +10,13 @@ defmodule RealmsWeb.Router do
     plug :put_root_layout, html: {RealmsWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :fetch_current_scope_for_user
     plug RealmsWeb.PlayerSession
   end
 
   pipeline :api do
     plug :accepts, ["json"]
   end
-
-  scope "/", RealmsWeb do
-    pipe_through :browser
-
-    live_session :default, on_mount: RealmsWeb.PlayerSession do
-      live "/", GameLive
-    end
-  end
-
-  # Other scopes may use custom stacks.
-  # scope "/api", RealmsWeb do
-  #   pipe_through :api
-  # end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:realms, :dev_routes) do
@@ -43,5 +33,36 @@ defmodule RealmsWeb.Router do
       live_dashboard "/dashboard", metrics: RealmsWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
+  end
+
+  ## Authentication routes
+
+  scope "/", RealmsWeb do
+    pipe_through [:browser, :redirect_if_user_is_authenticated]
+
+    get "/users/register", UserRegistrationController, :new
+    post "/users/register", UserRegistrationController, :create
+  end
+
+  scope "/", RealmsWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :authenticated, on_mount: [RealmsWeb.UserAuth, RealmsWeb.PlayerSession] do
+      live "/", GameLive
+      live "/players", PlayerManagementLive
+    end
+
+    get "/users/settings", UserSettingsController, :edit
+    put "/users/settings", UserSettingsController, :update
+    get "/users/settings/confirm-email/:token", UserSettingsController, :confirm_email
+  end
+
+  scope "/", RealmsWeb do
+    pipe_through [:browser]
+
+    get "/users/log-in", UserSessionController, :new
+    get "/users/log-in/:token", UserSessionController, :confirm
+    post "/users/log-in", UserSessionController, :create
+    delete "/users/log-out", UserSessionController, :delete
   end
 end
