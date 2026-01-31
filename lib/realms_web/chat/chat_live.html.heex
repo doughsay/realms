@@ -9,9 +9,11 @@
         class="p-2 bg-base-300 rounded"
       >
         <div class="text-xs text-base-content/60">
-          <%= Calendar.strftime(message.timestamp, "%H:%M:%S") %>
+          {Calendar.strftime(message.timestamp, "%H:%M:%S")}
         </div>
-        <div class={"whitespace-pre-wrap font-mono #{message_class(message.type)}"}><%= message.content %></div>
+        <div class={"whitespace-pre-wrap font-mono #{message_class(message.type)}"}>
+          {message.content}
+        </div>
       </div>
     </div>
   </div>
