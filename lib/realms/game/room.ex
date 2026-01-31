@@ -11,6 +11,7 @@ defmodule Realms.Game.Room do
 
     has_many :exits_from, Realms.Game.Exit, foreign_key: :from_room_id
     has_many :exits_to, Realms.Game.Exit, foreign_key: :to_room_id
+    has_many :players, Realms.Game.Player, foreign_key: :current_room_id
 
     timestamps(type: :utc_datetime)
   end

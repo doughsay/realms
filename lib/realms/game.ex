@@ -5,7 +5,7 @@ defmodule Realms.Game do
 
   import Ecto.Query
   alias Realms.Repo
-  alias Realms.Game.{Room, Exit}
+  alias Realms.Game.{Room, Exit, Player}
 
   # Room functions
 
@@ -148,5 +148,90 @@ defmodule Realms.Game do
     |> list_exits_from_room()
     |> Enum.map(fn exit -> {exit.direction, exit.to_room.name} end)
     |> Map.new()
+  end
+
+  # Player functions
+
+  @doc """
+  Gets or creates a player by session UUID.
+  Creates new players in Town Square with auto-generated name.
+  Updates last_seen_at on each call.
+  Returns player with current_room preloaded.
+  """
+  def get_or_create_player(session_player_id) do
+    case Repo.get(Player, session_player_id) do
+      nil ->
+        town_square = get_room_by_name("Town Square")
+        short_id = session_player_id |> String.split("-") |> List.first()
+
+        case create_player(%{
+               id: session_player_id,
+               name: "Adventurer_#{short_id}",
+               current_room_id: town_square.id,
+               last_seen_at: DateTime.utc_now()
+             }) do
+          {:ok, player} -> {:ok, Repo.preload(player, :current_room)}
+          error -> error
+        end
+
+      player ->
+        case update_player(player, %{last_seen_at: DateTime.utc_now()}) do
+          {:ok, player} -> {:ok, Repo.preload(player, :current_room)}
+          error -> error
+        end
+    end
+  end
+
+  @doc """
+  Gets a player by ID with current room preloaded.
+  """
+  def get_player!(id) do
+    Player
+    |> Repo.get!(id)
+    |> Repo.preload(:current_room)
+  end
+
+  @doc """
+  Creates a player.
+  """
+  def create_player(attrs) do
+    %Player{}
+    |> Player.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a player.
+  """
+  def update_player(%Player{} = player, attrs) do
+    player
+    |> Player.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Moves a player in a direction. Updates their current_room_id.
+  Returns {:ok, new_room} or {:error, reason}.
+  """
+  def move_player(%Player{} = player, direction) do
+    case get_exit_by_direction(player.current_room_id, direction) do
+      nil ->
+        {:error, :no_exit}
+
+      %Exit{to_room: new_room} ->
+        case update_player(player, %{current_room_id: new_room.id}) do
+          {:ok, _updated_player} -> {:ok, new_room}
+          error -> error
+        end
+    end
+  end
+
+  @doc """
+  Lists all players currently in a specific room.
+  """
+  def players_in_room(room_id) do
+    Player
+    |> where([p], p.current_room_id == ^room_id)
+    |> Repo.all()
   end
 end

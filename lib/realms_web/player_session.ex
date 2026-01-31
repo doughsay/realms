@@ -29,6 +29,6 @@ defmodule RealmsWeb.PlayerSession do
   end
 
   defp generate_player_id do
-    :crypto.strong_rand_bytes(16) |> Base.encode64()
+    Ecto.UUID.generate()
   end
 end
