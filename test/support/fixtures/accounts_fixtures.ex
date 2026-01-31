@@ -33,9 +33,7 @@ defmodule Realms.AccountsFixtures do
 
     # Confirm user directly (no magic link needed with password auth)
     {:ok, user} =
-      Realms.Repo.update(
-        Accounts.User.confirm_changeset(user)
-      )
+      Realms.Repo.update(Accounts.User.confirm_changeset(user))
 
     user
   end
