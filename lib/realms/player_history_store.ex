@@ -4,6 +4,7 @@ defmodule Realms.PlayerHistoryStore do
 
   @table_name :player_histories
   @max_messages 100
+  @schema_version 1  # Increment this to wipe DETS on next deploy
 
   # Client API
   def start_link(_opts) do
@@ -32,18 +33,47 @@ defmodule Realms.PlayerHistoryStore do
     File.mkdir_p!(dets_path)
     dets_file = Path.join(dets_path, "player_histories.dets")
 
+    # Check schema version and wipe if outdated
+    dets_file = maybe_reset_dets(dets_file, dets_path)
+
     case :dets.open_file(@table_name,
            file: String.to_charlist(dets_file),
            type: :set
          ) do
       {:ok, table} ->
-        Logger.info("PlayerHistoryStore: Opened DETS table at #{dets_file}")
+        # Store current schema version
+        :dets.insert(@table_name, {:schema_version, @schema_version})
+        Logger.info("PlayerHistoryStore: Opened DETS table at #{dets_file} (schema v#{@schema_version})")
         {:ok, %{table: table}}
 
       {:error, reason} ->
         Logger.error("PlayerHistoryStore: Failed to open DETS: #{inspect(reason)}")
         {:stop, reason}
     end
+  end
+
+  defp maybe_reset_dets(dets_file, dets_path) do
+    version_file = Path.join(dets_path, ".dets_schema_version")
+
+    stored_version =
+      case File.read(version_file) do
+        {:ok, content} -> String.to_integer(String.trim(content))
+        _ -> nil
+      end
+
+    if stored_version != @schema_version do
+      Logger.warning(
+        "PlayerHistoryStore: Schema version changed (#{stored_version} -> #{@schema_version}), resetting DETS"
+      )
+
+      # Delete old DETS file
+      File.rm(dets_file)
+
+      # Write new version
+      File.write!(version_file, "#{@schema_version}")
+    end
+
+    dets_file
   end
 
   @impl true

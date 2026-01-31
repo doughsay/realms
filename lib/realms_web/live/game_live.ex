@@ -3,14 +3,11 @@ defmodule RealmsWeb.GameLive do
 
   alias Realms.PlayerHistoryStore
   alias Realms.Game
+  alias RealmsWeb.Message
 
   def mount(_params, _session, socket) do
     player_id = socket.assigns.player_id
-
-    # Load player from database
     {:ok, player} = Game.get_or_create_player(player_id)
-
-    # Load history from DETS
     history = PlayerHistoryStore.get_history(player_id)
 
     socket =
@@ -21,12 +18,10 @@ defmodule RealmsWeb.GameLive do
       |> stream(:messages, history, limit: 100)
       |> assign(:form, to_form(%{"command" => ""}, as: :command))
 
-    # Subscribe to current room topic
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(player.current_room.id))
     end
 
-    # If history is empty, show room description as first message
     socket =
       if history == [] do
         show_room_description(socket)
@@ -49,7 +44,6 @@ defmodule RealmsWeb.GameLive do
       |> parse_command()
       |> execute_command(socket)
 
-    # Clear the command input
     {:noreply, assign(socket, :form, to_form(%{"command" => ""}, as: :command))}
   end
 
@@ -82,7 +76,7 @@ defmodule RealmsWeb.GameLive do
   end
 
   defp execute_command(:exits, socket) do
-    append_message(socket, :info, format_exits(socket.assigns.current_room))
+    append_message(socket, Message.new(:info, format_exits(socket.assigns.current_room)))
   end
 
   defp execute_command(:help, socket) do
@@ -95,14 +89,13 @@ defmodule RealmsWeb.GameLive do
     - help: Show this message
     """
 
-    append_message(socket, :info, help_text)
+    append_message(socket, Message.new(:info, help_text))
   end
 
   defp execute_command({:say, message}, socket) do
     if String.trim(message) == "" do
-      append_message(socket, :error, "Say what?")
+      append_message(socket, Message.new(:error, "Say what?"))
     else
-      # Broadcast to room - will receive back via PubSub
       broadcast_say(
         socket.assigns.current_room.id,
         socket.assigns.player.name,
@@ -119,7 +112,7 @@ defmodule RealmsWeb.GameLive do
 
     case Game.move_player(player, direction) do
       {:ok, new_room} ->
-        # 1. Broadcast departure to old room (won't receive it ourselves)
+        # 1. Broadcast departure to old room
         broadcast_departure(old_room.id, player.name, direction)
 
         # 2. Switch room subscriptions
@@ -128,7 +121,7 @@ defmodule RealmsWeb.GameLive do
           Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(new_room.id))
         end
 
-        # 3. Broadcast arrival to new room (won't receive it ourselves)
+        # 3. Broadcast arrival to new room
         reverse_dir = reverse_direction(direction)
         broadcast_arrival(new_room.id, player.name, reverse_dir)
 
@@ -141,29 +134,18 @@ defmodule RealmsWeb.GameLive do
         |> show_room_description()
 
       {:error, :no_exit} ->
-        append_message(socket, :error, "You can't go that way.")
+        append_message(socket, Message.new(:error, "You can't go that way."))
     end
   end
 
   defp execute_command({:unknown, command}, socket) do
-    append_message(socket, :error, "I don't understand '#{command}'. Type 'help' for commands.")
+    append_message(socket, Message.new(:error, "I don't understand '#{command}'. Type 'help' for commands."))
   end
 
   # PubSub Message Handlers
 
-  def handle_info({:say_message, player_name, message}, socket) do
-    content = "#{player_name} says: #{message}"
-    {:noreply, append_message(socket, :say, content)}
-  end
-
-  def handle_info({:player_arrived, player_name, from_direction}, socket) do
-    content = "#{player_name} arrives from the #{from_direction}."
-    {:noreply, append_message(socket, :room_event, content)}
-  end
-
-  def handle_info({:player_departed, player_name, to_direction}, socket) do
-    content = "#{player_name} leaves to the #{to_direction}."
-    {:noreply, append_message(socket, :room_event, content)}
+  def handle_info({:game_message, %Message{} = message}, socket) do
+    {:noreply, append_message(socket, message)}
   end
 
   # Helper Functions
@@ -172,7 +154,6 @@ defmodule RealmsWeb.GameLive do
     room = socket.assigns.current_room
     current_player_id = socket.assigns.player_id
 
-    # Get other players in the room
     other_players =
       room.id
       |> Game.players_in_room()
@@ -186,7 +167,6 @@ defmodule RealmsWeb.GameLive do
         "\nAlso here: #{player_names}\n"
       end
 
-    # Format room output
     content = """
     #{room.name}
     #{room.description}
@@ -194,7 +174,7 @@ defmodule RealmsWeb.GameLive do
     #{format_exits(room)}
     """
 
-    append_message(socket, :room, content)
+    append_message(socket, Message.new(:room, content))
   end
 
   defp format_exits(room) do
@@ -213,22 +193,11 @@ defmodule RealmsWeb.GameLive do
     end
   end
 
-  defp append_message(socket, type, content) do
-    message = %{
-      id: System.unique_integer([:positive]),
-      type: type,
-      content: content,
-      timestamp: DateTime.utc_now()
-    }
-
-    # Store in history
+  defp append_message(socket, %Message{} = message) do
     PlayerHistoryStore.append_message(socket.assigns.player_id, message)
-
-    # Stream to UI
     stream_insert(socket, :messages, message)
   end
 
-  # Message styling helper for template
   defp message_class(:room), do: "text-primary"
   defp message_class(:say), do: "text-base-content"
   defp message_class(:room_event), do: "text-info"
@@ -240,33 +209,56 @@ defmodule RealmsWeb.GameLive do
 
   defp room_topic(room_id), do: "room:#{room_id}"
 
-  defp broadcast_say(room_id, player_name, message) do
+  defp broadcast_say(room_id, player_name, text) do
+    message =
+      Message.new(
+        :say,
+        "#{player_name} says: #{text}",
+        Ecto.UUID.generate(),
+        DateTime.utc_now()
+      )
+
     Phoenix.PubSub.broadcast(
       Realms.PubSub,
       room_topic(room_id),
-      {:say_message, player_name, message}
+      {:game_message, message}
     )
   end
 
   defp broadcast_departure(room_id, player_name, direction) do
+    message =
+      Message.new(
+        :room_event,
+        "#{player_name} leaves to the #{direction}.",
+        Ecto.UUID.generate(),
+        DateTime.utc_now()
+      )
+
     Phoenix.PubSub.broadcast_from(
       Realms.PubSub,
       self(),
       room_topic(room_id),
-      {:player_departed, player_name, direction}
+      {:game_message, message}
     )
   end
 
   defp broadcast_arrival(room_id, player_name, from_direction) do
+    message =
+      Message.new(
+        :room_event,
+        "#{player_name} arrives from the #{from_direction}.",
+        Ecto.UUID.generate(),
+        DateTime.utc_now()
+      )
+
     Phoenix.PubSub.broadcast_from(
       Realms.PubSub,
       self(),
       room_topic(room_id),
-      {:player_arrived, player_name, from_direction}
+      {:game_message, message}
     )
   end
 
-  # Direction reversal for arrival messages
   defp reverse_direction("north"), do: "south"
   defp reverse_direction("south"), do: "north"
   defp reverse_direction("east"), do: "west"
@@ -275,8 +267,9 @@ defmodule RealmsWeb.GameLive do
   defp reverse_direction("northwest"), do: "southeast"
   defp reverse_direction("southeast"), do: "northwest"
   defp reverse_direction("southwest"), do: "northeast"
-  defp reverse_direction("up"), do: "down"
-  defp reverse_direction("down"), do: "up"
-  defp reverse_direction("in"), do: "out"
-  defp reverse_direction("out"), do: "in"
+  defp reverse_direction("up"), do: "below"
+  defp reverse_direction("down"), do: "above"
+  defp reverse_direction("in"), do: "outside"
+  defp reverse_direction("out"), do: "inside"
+  defp reverse_direction(_), do: "somewhere"
 end
