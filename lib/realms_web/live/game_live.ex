@@ -1,4 +1,4 @@
-defmodule RealmsWeb.ChatLive do
+defmodule RealmsWeb.GameLive do
   use RealmsWeb, :live_view
 
   alias Realms.PlayerHistoryStore

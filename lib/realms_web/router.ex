@@ -18,10 +18,8 @@ defmodule RealmsWeb.Router do
   scope "/", RealmsWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
-
     live_session :default, on_mount: RealmsWeb.PlayerSession do
-      live "/chat", ChatLive
+      live "/", GameLive
     end
   end
 
