@@ -4,7 +4,8 @@ defmodule Realms.PlayerHistoryStore do
 
   @table_name :player_histories
   @max_messages 100
-  @schema_version 1  # Increment this to wipe DETS on next deploy
+  # Increment this to wipe DETS on next deploy
+  @schema_version 1
 
   # Client API
   def start_link(_opts) do
@@ -43,7 +44,11 @@ defmodule Realms.PlayerHistoryStore do
       {:ok, table} ->
         # Store current schema version
         :dets.insert(@table_name, {:schema_version, @schema_version})
-        Logger.info("PlayerHistoryStore: Opened DETS table at #{dets_file} (schema v#{@schema_version})")
+
+        Logger.info(
+          "PlayerHistoryStore: Opened DETS table at #{dets_file} (schema v#{@schema_version})"
+        )
+
         {:ok, %{table: table}}
 
       {:error, reason} ->

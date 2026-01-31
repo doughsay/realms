@@ -139,7 +139,10 @@ defmodule RealmsWeb.GameLive do
   end
 
   defp execute_command({:unknown, command}, socket) do
-    append_message(socket, Message.new(:error, "I don't understand '#{command}'. Type 'help' for commands."))
+    append_message(
+      socket,
+      Message.new(:error, "I don't understand '#{command}'. Type 'help' for commands.")
+    )
   end
 
   # PubSub Message Handlers
