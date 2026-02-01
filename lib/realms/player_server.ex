@@ -71,14 +71,10 @@ defmodule Realms.PlayerServer do
   end
 
   @doc """
-  Unregisters a LiveView process (backup cleanup mechanism).
-  Process monitors are the primary cleanup via :DOWN messages.
+  Unregisters a LiveView process
   """
   def unregister_view(player_id, view_pid) do
-    case Registry.lookup(Realms.PlayerRegistry, player_id) do
-      [{pid, _}] -> GenServer.cast(pid, {:unregister_view, view_pid})
-      [] -> :ok
-    end
+    GenServer.cast(via_tuple(player_id), {:unregister_view, view_pid})
   end
 
   @doc """
