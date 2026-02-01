@@ -11,7 +11,6 @@ defmodule RealmsWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_scope_for_user
-    plug RealmsWeb.PlayerSession
   end
 
   pipeline :api do
@@ -22,7 +21,7 @@ defmodule RealmsWeb.Router do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :default,
-      on_mount: [{RealmsWeb.UserAuth, :require_authenticated}, RealmsWeb.PlayerSession] do
+      on_mount: [{RealmsWeb.UserAuth, :require_authenticated}] do
       live "/", GameLive
       live "/players", PlayerManagementLive
     end

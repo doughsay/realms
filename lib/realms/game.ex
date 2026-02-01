@@ -208,7 +208,7 @@ defmodule Realms.Game do
 
   @doc """
   Creates a player for a user with the given attributes.
-  The player will be placed in the Town Square.
+  The player will spawn in the Town Square.
   """
   def create_player_for_user(user_id, attrs) do
     town_square = get_room_by_name("Town Square")
@@ -219,7 +219,7 @@ defmodule Realms.Game do
       attrs =
         attrs
         |> Map.put(:user_id, user_id)
-        |> Map.put(:current_room_id, town_square.id)
+        |> Map.put(:spawn_room_id, town_square.id)
         |> Map.put(:last_seen_at, DateTime.utc_now())
 
       %Player{}
