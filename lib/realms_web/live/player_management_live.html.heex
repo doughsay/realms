@@ -1,0 +1,105 @@
+<Layouts.app flash={@flash}>
+  <div class="space-y-6">
+    <.header>
+      Your Characters
+      <:subtitle>Create and manage your game characters</:subtitle>
+    </.header>
+
+    <div class="space-y-4">
+      <h3 class="text-lg font-semibold">Create New Character</h3>
+      <.form
+        for={@form}
+        id="player-form"
+        phx-change="validate"
+        phx-submit="create"
+        class="flex gap-2 items-start"
+      >
+        <div class="flex-1">
+          <.input
+            field={@form[:name]}
+            type="text"
+            placeholder="Character name"
+            autocomplete="off"
+            class="input input-bordered w-full"
+          />
+        </div>
+        <.button variant="primary" phx-disable-with="Creating...">
+          Create Character
+        </.button>
+      </.form>
+    </div>
+
+    <div class="divider" />
+
+    <div class="space-y-4">
+      <h3 class="text-lg font-semibold">Your Characters</h3>
+      <%= if @players == [] do %>
+        <p class="text-base-content/60">
+          You don't have any characters yet. Create one above to get started!
+        </p>
+      <% else %>
+        <div class="space-y-2">
+          <%= for player <- @players do %>
+            <div class="flex items-center justify-between p-4 bg-base-200 rounded-lg">
+              <%= if @editing && @editing.id == player.id do %>
+                <form
+                  phx-submit="update"
+                  phx-value-id={player.id}
+                  class="flex-1 flex items-center gap-2"
+                >
+                  <input
+                    type="text"
+                    name="name"
+                    value={player.name}
+                    class="input input-bordered flex-1"
+                    autofocus
+                  />
+                  <button type="submit" class="btn btn-primary btn-sm">
+                    Save
+                  </button>
+                  <button type="button" phx-click="cancel_edit" class="btn btn-ghost btn-sm">
+                    Cancel
+                  </button>
+                </form>
+              <% else %>
+                <div class="flex-1">
+                  <p class="font-semibold">{player.name}</p>
+                  <p class="text-sm text-base-content/60">
+                    Last seen: {Calendar.strftime(
+                      player.last_seen_at || player.inserted_at,
+                      "%Y-%m-%d %H:%M"
+                    )}
+                  </p>
+                </div>
+                <div class="flex gap-2">
+                  <.link
+                    href={~p"/players/#{player.id}/play"}
+                    method="post"
+                    class="btn btn-primary btn-sm"
+                  >
+                    Play
+                  </.link>
+                  <button
+                    phx-click="edit"
+                    phx-value-id={player.id}
+                    class="btn btn-ghost btn-sm"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    phx-click="delete"
+                    phx-value-id={player.id}
+                    data-confirm="Are you sure you want to delete this character?"
+                    class="btn btn-error btn-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</Layouts.app>

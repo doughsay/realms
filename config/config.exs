@@ -7,6 +7,32 @@
 # General application configuration
 import Config
 
+config :realms, :scopes,
+  accounts_user: [
+    default: false,
+    module: Realms.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :binary_id,
+    schema_table: :users,
+    test_data_fixture: Realms.AccountsFixtures,
+    test_setup_helper: :register_and_log_in_user
+  ]
+
+config :realms, :scopes,
+  user: [
+    default: true,
+    module: Realms.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :binary_id,
+    schema_table: :users,
+    test_data_fixture: Realms.AccountsFixtures,
+    test_setup_helper: :register_and_log_in_user
+  ]
+
 config :realms,
   ecto_repos: [Realms.Repo],
   generators: [timestamp_type: :utc_datetime]

@@ -6,30 +6,40 @@ defmodule RealmsWeb.GameLive do
   alias RealmsWeb.Message
 
   def mount(_params, _session, socket) do
-    player_id = socket.assigns.player_id
-    {:ok, player} = Game.get_or_create_player(player_id)
-    history = PlayerHistoryStore.get_history(player_id)
+    player_id = socket.assigns[:player_id]
 
-    socket =
-      socket
-      |> assign(:player_id, player_id)
-      |> assign(:player, player)
-      |> assign(:current_room, player.current_room)
-      |> stream(:messages, history, limit: 100)
-      |> assign(:form, to_form(%{"command" => ""}, as: :command))
+    if is_nil(player_id) do
+      {:ok, assign(socket, :player_id, nil)}
+    else
+      case Game.get_player(player_id) do
+        nil ->
+          {:ok, assign(socket, :player_id, nil)}
 
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(player.current_room.id))
-    end
+        player ->
+          history = PlayerHistoryStore.get_history(player_id)
 
-    socket =
-      if history == [] do
-        show_room_description(socket)
-      else
-        socket
+          socket =
+            socket
+            |> assign(:player_id, player_id)
+            |> assign(:player, player)
+            |> assign(:current_room, player.current_room)
+            |> stream(:messages, history, limit: 100)
+            |> assign(:form, to_form(%{"command" => ""}, as: :command))
+
+          if connected?(socket) do
+            Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(player.current_room.id))
+          end
+
+          socket =
+            if history == [] do
+              show_room_description(socket)
+            else
+              socket
+            end
+
+          {:ok, socket}
       end
-
-    {:ok, socket}
+    end
   end
 
   def handle_event("validate", %{"command" => command_params}, socket) do
@@ -126,7 +136,7 @@ defmodule RealmsWeb.GameLive do
         broadcast_arrival(new_room.id, player.name, reverse_dir)
 
         # 4. Update state and show new room
-        {:ok, updated_player} = Game.get_or_create_player(player.id)
+        updated_player = Game.get_player!(player.id)
 
         socket
         |> assign(:player, updated_player)

@@ -15,14 +15,17 @@ defmodule Realms.Game.Player do
       type: :binary_id,
       define_field: false
 
+    belongs_to :user, Realms.Accounts.User
+
     timestamps(type: :utc_datetime)
   end
 
   def changeset(player, attrs) do
     player
-    |> cast(attrs, [:id, :name, :current_room_id, :last_seen_at])
+    |> cast(attrs, [:id, :name, :current_room_id, :last_seen_at, :user_id])
     |> validate_required([:name, :current_room_id])
     |> validate_length(:name, min: 1, max: 100)
     |> foreign_key_constraint(:current_room_id)
+    |> foreign_key_constraint(:user_id)
   end
 end

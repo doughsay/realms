@@ -153,38 +153,18 @@ defmodule Realms.Game do
   # Player functions
 
   @doc """
-  Gets or creates a player by session UUID.
-  Creates new players in Town Square with auto-generated name.
-  Updates last_seen_at on each call.
-  Returns player with current_room preloaded.
+  Gets a player by ID with current room and user preloaded.
+  Returns nil if not found.
   """
-  def get_or_create_player(session_player_id) do
-    case Repo.get(Player, session_player_id) do
-      nil ->
-        town_square = get_room_by_name("Town Square")
-        short_id = session_player_id |> String.split("-") |> List.first()
-
-        case create_player(%{
-               id: session_player_id,
-               name: "Adventurer_#{short_id}",
-               current_room_id: town_square.id,
-               last_seen_at: DateTime.utc_now()
-             }) do
-          {:ok, player} -> {:ok, Repo.preload(player, :current_room)}
-          error -> error
-        end
-
-      player ->
-        case update_player(player, %{last_seen_at: DateTime.utc_now()}) do
-          {:ok, player} -> {:ok, Repo.preload(player, :current_room)}
-          error -> error
-        end
+  def get_player(id) do
+    Player
+    |> Repo.get(id)
+    |> case do
+      nil -> nil
+      player -> Repo.preload(player, [:current_room, :user])
     end
   end
 
-  @doc """
-  Gets a player by ID with current room preloaded.
-  """
   def get_player!(id) do
     Player
     |> Repo.get!(id)
@@ -207,6 +187,45 @@ defmodule Realms.Game do
     player
     |> Player.changeset(attrs)
     |> Repo.update()
+  end
+
+  @doc """
+  Deletes a player.
+  """
+  def delete_player(%Player{} = player) do
+    Repo.delete(player)
+  end
+
+  @doc """
+  Lists all players for a user.
+  """
+  def list_players_for_user(user_id) do
+    Player
+    |> where([p], p.user_id == ^user_id)
+    |> order_by([p], desc: p.inserted_at)
+    |> Repo.all()
+  end
+
+  @doc """
+  Creates a player for a user with the given attributes.
+  The player will be placed in the Town Square.
+  """
+  def create_player_for_user(user_id, attrs) do
+    town_square = get_room_by_name("Town Square")
+
+    if is_nil(town_square) do
+      {:error, :no_starting_room}
+    else
+      attrs =
+        attrs
+        |> Map.put(:user_id, user_id)
+        |> Map.put(:current_room_id, town_square.id)
+        |> Map.put(:last_seen_at, DateTime.utc_now())
+
+      %Player{}
+      |> Player.changeset(attrs)
+      |> Repo.insert()
+    end
   end
 
   @doc """
