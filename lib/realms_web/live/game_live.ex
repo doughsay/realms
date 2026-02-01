@@ -50,9 +50,17 @@ defmodule RealmsWeb.GameLive do
     command = String.trim(command)
 
     socket =
-      command
-      |> parse_command()
-      |> execute_command(socket)
+      if command != "" do
+        socket
+        |> append_message(Message.new(:command_echo, "> #{command}"))
+        |> then(fn socket ->
+          command
+          |> parse_command()
+          |> execute_command(socket)
+        end)
+      else
+        socket
+      end
 
     {:noreply, assign(socket, :form, to_form(%{"command" => ""}, as: :command))}
   end
@@ -217,6 +225,7 @@ defmodule RealmsWeb.GameLive do
   defp message_class(:players), do: "text-accent"
   defp message_class(:error), do: "text-error"
   defp message_class(:info), do: "text-info"
+  defp message_class(:command_echo), do: "text-base-content/40"
   defp message_class(_), do: "text-base-content"
 
   # PubSub Helpers
