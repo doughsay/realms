@@ -364,9 +364,10 @@ defmodule RealmsWeb.GameLiveTest do
 
       # Verify Player 1's GenServer captured the message (even with no views)
       player1_state = :sys.get_state(player1_genserver)
+
       assert Enum.any?(player1_state.message_history, fn msg ->
-        msg.content =~ "hello while you were gone"
-      end)
+               msg.content =~ "hello while you were gone"
+             end)
 
       # Player 1 reconnects with a new LiveView
       {:ok, view1_new, _html} = live(conn, "/")
