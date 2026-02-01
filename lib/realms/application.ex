@@ -12,9 +12,11 @@ defmodule Realms.Application do
       Realms.Repo,
       {DNSCluster, query: Application.get_env(:realms, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Realms.PubSub},
-      # Start a worker by calling: Realms.Worker.start_link(arg)
-      # {Realms.Worker, arg},
-      Realms.PlayerHistoryStore,
+
+      # Player GenServer infrastructure
+      {Registry, keys: :unique, name: Realms.PlayerRegistry},
+      {DynamicSupervisor, strategy: :one_for_one, name: Realms.PlayerSupervisor},
+
       # Start to serve requests, typically the last entry
       RealmsWeb.Endpoint
     ]
