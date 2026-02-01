@@ -19,7 +19,6 @@ defmodule Realms.PlayerServer do
     %{
       id: __MODULE__,
       start: {__MODULE__, :start_link, [player_id]},
-      # Don't restart on :normal or :shutdown exits
       restart: :transient
     }
   end
@@ -127,6 +126,8 @@ defmodule Realms.PlayerServer do
 
         history = load_history_from_dets(table)
 
+        is_reconnect_after_restart = not is_nil(player.current_room_id)
+
         player =
           if is_nil(player.current_room) do
             spawn_room = Game.get_room!(player.spawn_room_id)
@@ -139,7 +140,9 @@ defmodule Realms.PlayerServer do
         room_id = player.current_room.id
         Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(room_id))
 
-        broadcast_connection_event(room_id, "#{player.name} has arrived!")
+        if not is_reconnect_after_restart do
+          broadcast_connection_event(room_id, "#{player.name} has arrived!")
+        end
 
         state = %__MODULE__{
           player_id: player_id,
@@ -216,11 +219,9 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_cast({:handle_input, input}, state) do
-    # First, echo the command to all views and store in history
     command_echo = Message.new(:command_echo, "> #{input}")
     state = append_and_broadcast_local(state, command_echo)
 
-    # Then parse and execute the command
     new_state =
       input
       |> parse_command()
@@ -231,10 +232,8 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_info({:game_message, %Message{} = message}, state) do
-    # Deduplicate and store message
     new_state = append_message_to_history(state, message)
 
-    # Forward to all connected views
     broadcast_to_views(new_state, {:game_message, message})
 
     {:noreply, new_state}
@@ -242,7 +241,6 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
-    # LiveView crashed or terminated - cleanup
     Logger.debug("View #{inspect(pid)} went down for player #{state.player_id}")
     {:noreply, disconnect_view(state, pid)}
   end
@@ -278,6 +276,15 @@ defmodule Realms.PlayerServer do
     else
       {:noreply, %{state | shutdown_timer_ref: nil}}
     end
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    if state.dets_table do
+      :dets.close(state.dets_table)
+    end
+
+    :ok
   end
 
   # Command Parser
@@ -377,9 +384,6 @@ defmodule Realms.PlayerServer do
       "#{state.player.name} disappears in a puff of smoke."
     )
 
-    :dets.insert(state.dets_table, {:messages, state.message_history})
-    :dets.close(state.dets_table)
-
     Game.update_player(state.player, %{
       connection_status: :offline,
       spawn_room_id: state.current_room_id,
@@ -416,7 +420,6 @@ defmodule Realms.PlayerServer do
 
     state = append_and_broadcast_local(state, Message.new(:room, content))
 
-    # Show other players in a separate message
     if other_players != [] do
       player_names =
         Enum.map_join(other_players, ", ", fn player ->
@@ -456,7 +459,6 @@ defmodule Realms.PlayerServer do
     else
       new_history = (state.message_history ++ [message]) |> Enum.take(-@max_messages)
 
-      # Write to DETS asynchronously
       :dets.insert(state.dets_table, {:messages, new_history})
       :dets.sync(state.dets_table)
 
@@ -604,8 +606,6 @@ defmodule Realms.PlayerServer do
   # DETS Helpers
 
   defp dets_table_name(player_id) do
-    # Use the player_id directly as the table name (DETS accepts any term)
-    # This avoids creating atoms dynamically which would cause a memory leak
     "player_history_#{player_id}"
   end
 
