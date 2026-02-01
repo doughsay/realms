@@ -129,9 +129,10 @@ defmodule Realms.PlayerServer do
         is_reconnect_after_restart = not is_nil(player.current_room_id)
 
         player =
-          if is_nil(player.current_room) do
-            spawn_room = Game.get_room!(player.spawn_room_id)
-            {:ok, updated_player} = Game.update_player(player, %{current_room_id: spawn_room.id})
+          if is_nil(player.current_room_id) do
+            {:ok, updated_player} =
+              Game.update_player(player, %{current_room_id: player.spawn_room.id})
+
             updated_player
           else
             player
