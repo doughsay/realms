@@ -128,9 +128,20 @@ defmodule Realms.PlayerServer do
         # Load history from DETS
         history = load_history_from_dets(table)
 
+        player =
+          if is_nil(player.current_room) do
+            spawn_room = Game.get_room!(player.spawn_room_id)
+            {:ok, updated_player} = Game.update_player(player, %{current_room_id: spawn_room.id})
+            updated_player
+          else
+            player
+          end
+
         # Subscribe to room PubSub
         room_id = player.current_room.id
         Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(room_id))
+
+        broadcast_room_event(room_id, "#{player.name} has arrived!")
 
         state = %__MODULE__{
           player_id: player_id,
@@ -161,8 +172,18 @@ defmodule Realms.PlayerServer do
     # Monitor the LiveView process
     Process.monitor(view_pid)
 
+    if state.player.connection_status == :away do
+      broadcast_room_event(
+        state.current_room_id,
+        "#{state.player.name}'s eyes snap back into focus."
+      )
+    end
+
     new_views = MapSet.put(state.connected_views, view_pid)
-    new_state = %{state | connected_views: new_views}
+
+    {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :online})
+
+    new_state = %{state | connected_views: new_views, player: updated_player}
 
     Logger.debug("Registered view #{inspect(view_pid)} for player #{state.player_id}")
 
@@ -186,17 +207,8 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_cast({:unregister_view, view_pid}, state) do
-    new_views = MapSet.delete(state.connected_views, view_pid)
-    new_state = %{state | connected_views: new_views}
-
     Logger.debug("Unregistered view #{inspect(view_pid)} for player #{state.player_id}")
-
-    # Check if we should shut down
-    if MapSet.size(new_views) == 0 do
-      Process.send_after(self(), :check_no_views_timeout, @no_views_timeout)
-    end
-
-    {:noreply, new_state}
+    {:noreply, disconnect_view(state, view_pid)}
   end
 
   @impl true
@@ -228,17 +240,8 @@ defmodule Realms.PlayerServer do
   @impl true
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     # LiveView crashed or terminated - cleanup
-    new_views = MapSet.delete(state.connected_views, pid)
-    new_state = %{state | connected_views: new_views}
-
     Logger.debug("View #{inspect(pid)} went down for player #{state.player_id}")
-
-    # Schedule shutdown check if no views remaining
-    if MapSet.size(new_views) == 0 do
-      Process.send_after(self(), :check_no_views_timeout, @no_views_timeout)
-    end
-
-    {:noreply, new_state}
+    {:noreply, disconnect_view(state, pid)}
   end
 
   @impl true
@@ -246,6 +249,7 @@ defmodule Realms.PlayerServer do
     if MapSet.size(state.connected_views) == 0 do
       # Still no views after timeout - shutdown
       Logger.info("PlayerServer shutting down for player #{state.player_id} (no connected views)")
+      cleanup(state)
       {:stop, :normal, state}
     else
       # View reconnected in the meantime - stay alive
@@ -255,10 +259,6 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def terminate(_reason, state) do
-    # Final write to DETS on shutdown
-    :dets.insert(state.dets_table, {:messages, state.message_history})
-    :dets.close(state.dets_table)
-
     Logger.info("PlayerServer terminated for player #{state.player_id}")
     :ok
   end
@@ -354,6 +354,41 @@ defmodule Realms.PlayerServer do
 
   # Helper Functions
 
+  defp cleanup(state) do
+    broadcast_room_event(
+      state.current_room_id,
+      "#{state.player.name} disappears in a puff of smoke."
+    )
+
+    :dets.insert(state.dets_table, {:messages, state.message_history})
+    :dets.close(state.dets_table)
+
+    Game.update_player(state.player, %{
+      connection_status: :offline,
+      spawn_room_id: state.current_room_id,
+      current_room_id: nil
+    })
+  end
+
+  defp disconnect_view(state, view_pid) do
+    new_views = MapSet.delete(state.connected_views, view_pid)
+    state = %{state | connected_views: new_views}
+
+    if MapSet.size(new_views) == 0 do
+      {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :away})
+
+      broadcast_room_event(
+        state.current_room_id,
+        "#{state.player.name}'s eyes have gone all unfocused."
+      )
+
+      Process.send_after(self(), :check_no_views_timeout, @no_views_timeout)
+      %{state | player: updated_player}
+    else
+      state
+    end
+  end
+
   defp show_room_description(state) do
     room = state.player.current_room
     current_player_id = state.player_id
@@ -374,7 +409,15 @@ defmodule Realms.PlayerServer do
 
     # Show other players in a separate message
     if other_players != [] do
-      player_names = Enum.map_join(other_players, ", ", & &1.name)
+      player_names =
+        Enum.map_join(other_players, ", ", fn player ->
+          if player.connection_status == :away do
+            "#{player.name} (staring off into space)"
+          else
+            player.name
+          end
+        end)
+
       message = Message.new(:players, "Also here: #{player_names}")
       append_and_broadcast_local(state, message)
     else
@@ -431,6 +474,22 @@ defmodule Realms.PlayerServer do
   # PubSub Helpers
 
   defp room_topic(room_id), do: "room:#{room_id}"
+
+  defp broadcast_room_event(room_id, text) do
+    message =
+      Message.new(
+        :room_event,
+        text,
+        Ecto.UUID.generate(),
+        DateTime.utc_now()
+      )
+
+    Phoenix.PubSub.broadcast(
+      Realms.PubSub,
+      room_topic(room_id),
+      {:game_message, message}
+    )
+  end
 
   defp broadcast_say(room_id, player_name, text) do
     message =

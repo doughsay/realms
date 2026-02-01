@@ -8,6 +8,7 @@ defmodule Realms.PlayerServerTest do
   defp start_player_server(player_id) do
     {:ok, pid} = PlayerServer.ensure_started(player_id)
     Ecto.Adapters.SQL.Sandbox.allow(Realms.Repo, self(), pid)
+    Process.link(pid)
     {:ok, pid}
   end
 
@@ -250,6 +251,23 @@ defmodule Realms.PlayerServerTest do
       assert Process.alive?(pid)
 
       # Note: Full timeout test would require waiting 30+ seconds or making timeout configurable
+    end
+
+    test "updates player status to offline on shutdown", %{player: player} do
+      {:ok, pid} = start_player_server(player.id)
+
+      # Simulate timeout
+      send(pid, :check_no_views_timeout)
+
+      # Wait for process death
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+
+      # Check DB
+      updated_player = Game.get_player!(player.id)
+      assert updated_player.connection_status == :offline
+      assert updated_player.current_room_id == nil
+      assert updated_player.spawn_room_id == player.current_room_id
     end
   end
 
