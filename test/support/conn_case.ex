@@ -28,6 +28,7 @@ defmodule RealmsWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import RealmsWeb.ConnCase
+      import Liveness
     end
   end
 

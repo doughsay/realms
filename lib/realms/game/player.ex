@@ -9,6 +9,7 @@ defmodule Realms.Game.Player do
     field :name, :string
     field :last_seen_at, :utc_datetime
     field :connection_status, Ecto.Enum, values: [:online, :offline, :away], default: :offline
+    field :despawn_reason, :string
 
     belongs_to :current_room, Realms.Game.Room,
       foreign_key: :current_room_id,
@@ -32,7 +33,8 @@ defmodule Realms.Game.Player do
       :spawn_room_id,
       :connection_status,
       :last_seen_at,
-      :user_id
+      :user_id,
+      :despawn_reason
     ])
     |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 100)

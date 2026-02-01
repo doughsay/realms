@@ -126,13 +126,12 @@ defmodule Realms.PlayerServer do
 
         history = load_history_from_dets(table)
 
-        is_reconnect_after_restart = not is_nil(player.current_room_id)
+        needs_spawn = is_nil(player.current_room_id)
+        is_server_restart = player.despawn_reason == "server_restart"
 
         player =
-          if is_nil(player.current_room_id) do
-            {:ok, updated_player} =
-              Game.update_player(player, %{current_room_id: player.spawn_room.id})
-
+          if needs_spawn do
+            {:ok, updated_player} = Game.spawn_player(player, player.spawn_room.id)
             updated_player
           else
             player
@@ -141,7 +140,7 @@ defmodule Realms.PlayerServer do
         room_id = player.current_room.id
         Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(room_id))
 
-        if not is_reconnect_after_restart do
+        if needs_spawn and not is_server_restart do
           broadcast_connection_event(room_id, "#{player.name} has arrived!")
         end
 
@@ -385,11 +384,7 @@ defmodule Realms.PlayerServer do
       "#{state.player.name} disappears in a puff of smoke."
     )
 
-    Game.update_player(state.player, %{
-      connection_status: :offline,
-      spawn_room_id: state.current_room_id,
-      current_room_id: nil
-    })
+    Game.despawn_player(state.player, "timeout")
   end
 
   defp disconnect_view(state, view_pid) do

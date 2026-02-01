@@ -12,12 +12,16 @@ defmodule Realms.PlayerServerTest do
     {:ok, pid}
   end
 
-  setup do
-    # Clean up existing data
-    Realms.Repo.delete_all(Realms.Game.Exit)
-    Realms.Repo.delete_all(Realms.Game.Player)
-    Realms.Repo.delete_all(Realms.Game.Room)
+  # Helper to flush all messages from the process mailbox
+  defp flush_messages(acc \\ []) do
+    receive do
+      msg -> flush_messages([msg | acc])
+    after
+      0 -> Enum.reverse(acc)
+    end
+  end
 
+  setup do
     # Create test rooms
     {:ok, town_square} =
       Game.create_room(%{
@@ -152,11 +156,14 @@ defmodule Realms.PlayerServerTest do
 
       PlayerServer.handle_input(player.id, "look")
 
-      # Wait for async processing
-      Process.sleep(20)
-
       # Should receive room description
-      assert_received({:game_message, %Message{type: :room}})
+      assert eventually(fn ->
+               receive do
+                 {:game_message, %Message{type: :room}} = msg -> {:ok, msg}
+               after
+                 0 -> :error
+               end
+             end)
     end
 
     test "executes say command", %{player: player} do
@@ -169,12 +176,15 @@ defmodule Realms.PlayerServerTest do
 
       PlayerServer.handle_input(player.id, "say hello")
 
-      # Wait for async processing
-      Process.sleep(20)
-
       # Should receive say message via PubSub
-      assert_received({:game_message, %Message{type: :say, content: content}})
-      assert content =~ "hello"
+      assert eventually(fn ->
+               receive do
+                 {:game_message, %Message{type: :say, content: content}} = msg ->
+                   if content =~ "hello", do: {:ok, msg}, else: :error
+               after
+                 0 -> :error
+               end
+             end)
     end
 
     test "executes move command", %{player: player} do
@@ -185,16 +195,26 @@ defmodule Realms.PlayerServerTest do
 
       PlayerServer.handle_input(player.id, "north")
 
-      # Wait for async processing
-      Process.sleep(20)
-
       # Should receive new room description
-      assert_received({:game_message, %Message{type: :room, content: content}})
-      assert content =~ "The Tavern"
+      assert eventually(fn ->
+               receive do
+                 {:game_message, %Message{type: :room, content: content}} = msg ->
+                   if content =~ "The Tavern", do: {:ok, msg}, else: :error
+               after
+                 0 -> :error
+               end
+             end)
 
       # Verify state updated
-      state = PlayerServer.get_state(player.id)
-      assert state.current_room.name == "The Tavern"
+      assert eventually(fn ->
+               state = PlayerServer.get_state(player.id)
+
+               if state.current_room.name == "The Tavern" do
+                 {:ok, state}
+               else
+                 :error
+               end
+             end)
     end
 
     test "handles unknown command", %{player: player} do
@@ -205,12 +225,15 @@ defmodule Realms.PlayerServerTest do
 
       PlayerServer.handle_input(player.id, "foobar")
 
-      # Wait for async processing
-      Process.sleep(20)
-
       # Should receive error message
-      assert_received({:game_message, %Message{type: :error, content: content}})
-      assert content =~ "I don't understand"
+      assert eventually(fn ->
+               receive do
+                 {:game_message, %Message{type: :error, content: content}} = msg ->
+                   if content =~ "I don't understand", do: {:ok, msg}, else: :error
+               after
+                 0 -> :error
+               end
+             end)
     end
   end
 
@@ -292,6 +315,171 @@ defmodule Realms.PlayerServerTest do
       # History should be restored
       history = PlayerServer.get_history(player.id)
       assert Enum.any?(history, fn msg -> msg.content =~ "persisted message" end)
+    end
+  end
+
+  describe "arrival message suppression" do
+    test "shows arrival message on first spawn (normal login)", %{town_square: town_square} do
+      # Create an unspawned player (no current_room_id)
+      user = Realms.AccountsFixtures.user_fixture()
+
+      {:ok, player} =
+        Game.create_player(%{
+          name: "NewPlayer",
+          user_id: user.id,
+          spawn_room_id: town_square.id,
+          last_seen_at: DateTime.utc_now()
+        })
+
+      # Verify player is not spawned
+      assert is_nil(player.current_room_id)
+      assert is_nil(player.despawn_reason)
+
+      # Subscribe to room to see arrival messages
+      Phoenix.PubSub.subscribe(Realms.PubSub, "room:#{town_square.id}")
+
+      # Player connects for first time
+      {:ok, _pid} = start_player_server(player.id)
+
+      # Should receive arrival message
+      assert eventually(fn ->
+               receive do
+                 {:game_message, %Message{type: :room_event, content: content}} = msg ->
+                   if content =~ "has arrived!", do: {:ok, msg}, else: :error
+               after
+                 0 -> :error
+               end
+             end)
+    end
+
+    test "suppresses arrival message after server restart", %{
+      player: player,
+      town_square: town_square
+    } do
+      # Simulate server restart scenario:
+      # 1. Player was online and spawned
+      {:ok, player} = Game.spawn_player(player, town_square.id)
+
+      # 2. Server restarted - ConnectionManager despawned all players
+      {:ok, player} = Game.despawn_player(player, "server_restart")
+      assert player.despawn_reason == "server_restart"
+
+      # 3. Player reconnects - PlayerServer starts
+      Phoenix.PubSub.subscribe(Realms.PubSub, "room:#{town_square.id}")
+
+      {:ok, _pid} = start_player_server(player.id)
+
+      # Should NOT receive arrival message
+      # Wait a bit for any potential messages to arrive, then verify none are arrival messages
+      assert eventually(
+               fn ->
+                 messages = flush_messages()
+
+                 arrival_messages =
+                   Enum.filter(messages, fn
+                     {:game_message, %Message{type: :room_event, content: content}} ->
+                       String.contains?(content, "has arrived!")
+
+                     _ ->
+                       false
+                   end)
+
+                 if arrival_messages == [] do
+                   {:ok, :no_arrival_messages}
+                 else
+                   :error
+                 end
+               end,
+               10,
+               20
+             )
+    end
+
+    test "shows arrival message after timeout disconnect", %{
+      player: player,
+      town_square: town_square
+    } do
+      # Simulate timeout scenario:
+      # 1. Player was online
+      {:ok, player} = Game.spawn_player(player, town_square.id)
+
+      # 2. Player timed out - PlayerServer despawned with "timeout" reason
+      {:ok, player} = Game.despawn_player(player, "timeout")
+      assert player.despawn_reason == "timeout"
+
+      # 3. Player reconnects
+      Phoenix.PubSub.subscribe(Realms.PubSub, "room:#{town_square.id}")
+
+      {:ok, _pid} = start_player_server(player.id)
+
+      # Should receive arrival message (timeout is not a server restart)
+      assert eventually(fn ->
+               receive do
+                 {:game_message, %Message{type: :room_event, content: content}} = msg ->
+                   if content =~ "has arrived!", do: {:ok, msg}, else: :error
+               after
+                 0 -> :error
+               end
+             end)
+    end
+
+    test "shows arrival message after server shutdown", %{
+      player: player,
+      town_square: town_square
+    } do
+      # Simulate graceful shutdown scenario:
+      # 1. Player was online
+      {:ok, player} = Game.spawn_player(player, town_square.id)
+
+      # 2. Server shut down gracefully
+      {:ok, player} = Game.despawn_player(player, "server_shutdown")
+      assert player.despawn_reason == "server_shutdown"
+
+      # 3. Player reconnects after server restart
+      Phoenix.PubSub.subscribe(Realms.PubSub, "room:#{town_square.id}")
+
+      {:ok, _pid} = start_player_server(player.id)
+
+      # Should receive arrival message (server_shutdown is different from server_restart)
+      assert eventually(fn ->
+               receive do
+                 {:game_message, %Message{type: :room_event, content: content}} = msg ->
+                   if content =~ "has arrived!", do: {:ok, msg}, else: :error
+               after
+                 0 -> :error
+               end
+             end)
+    end
+
+    test "player with no despawn_reason shows arrival message", %{town_square: town_square} do
+      # Create an unspawned player with no despawn_reason
+      user = Realms.AccountsFixtures.user_fixture()
+
+      {:ok, player} =
+        Game.create_player(%{
+          name: "BrandNewPlayer",
+          user_id: user.id,
+          spawn_room_id: town_square.id,
+          last_seen_at: DateTime.utc_now()
+        })
+
+      # Player never had despawn_reason set (new player scenario)
+      assert is_nil(player.current_room_id)
+      assert is_nil(player.despawn_reason)
+
+      Phoenix.PubSub.subscribe(Realms.PubSub, "room:#{town_square.id}")
+
+      {:ok, _pid} = start_player_server(player.id)
+
+      # Should receive arrival message
+      assert eventually(fn ->
+               receive do
+                 {:game_message, %Message{type: :room_event, content: content}} = msg ->
+                   if content =~ "has arrived!", do: {:ok, msg}, else: :error
+               after
+                 0 -> :error
+               end
+             end)
     end
   end
 end
