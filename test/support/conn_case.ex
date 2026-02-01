@@ -88,6 +88,10 @@ defmodule RealmsWeb.ConnCase do
     result = register_and_log_in_user(context)
     player = Realms.GameFixtures.player_fixture(result.user)
 
+    # Pre-start the Player GenServer and grant sandbox access for LiveView tests
+    {:ok, player_server_pid} = Realms.PlayerServer.ensure_started(player.id)
+    allow_sandbox_access(player_server_pid)
+
     result
     |> Map.put(:player, player)
     |> Map.put(:conn, select_player(result.conn, player))
@@ -111,11 +115,23 @@ defmodule RealmsWeb.ConnCase do
     user2 = Realms.AccountsFixtures.user_fixture()
     player2 = Realms.GameFixtures.player_fixture(user2)
 
+    # Pre-start the Player GenServer and grant sandbox access for LiveView tests
+    {:ok, player_server_pid} = Realms.PlayerServer.ensure_started(player2.id)
+    allow_sandbox_access(player_server_pid)
+
     conn2 =
       Phoenix.ConnTest.build_conn()
       |> log_in_user(user2)
       |> select_player(player2)
 
     %{user2: user2, player2: player2, conn2: conn2}
+  end
+
+  @doc """
+  Allows a process to access the SQL sandbox in tests.
+  Call this after starting a process that needs database access.
+  """
+  def allow_sandbox_access(pid) do
+    Ecto.Adapters.SQL.Sandbox.allow(Realms.Repo, self(), pid)
   end
 end
