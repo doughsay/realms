@@ -8,12 +8,15 @@ defmodule Realms.Game.Player do
   schema "players" do
     field :name, :string
     field :last_seen_at, :utc_datetime
-    field :current_room_id, :binary_id
+    field :connection_status, Ecto.Enum, values: [:online, :offline, :away], default: :offline
 
     belongs_to :current_room, Realms.Game.Room,
       foreign_key: :current_room_id,
-      type: :binary_id,
-      define_field: false
+      type: :binary_id
+
+    belongs_to :spawn_room, Realms.Game.Room,
+      foreign_key: :spawn_room_id,
+      type: :binary_id
 
     belongs_to :user, Realms.Accounts.User
 
@@ -22,10 +25,19 @@ defmodule Realms.Game.Player do
 
   def changeset(player, attrs) do
     player
-    |> cast(attrs, [:id, :name, :current_room_id, :last_seen_at, :user_id])
-    |> validate_required([:name, :current_room_id])
+    |> cast(attrs, [
+      :id,
+      :name,
+      :current_room_id,
+      :spawn_room_id,
+      :connection_status,
+      :last_seen_at,
+      :user_id
+    ])
+    |> validate_required([:name])
     |> validate_length(:name, min: 1, max: 100)
     |> foreign_key_constraint(:current_room_id)
+    |> foreign_key_constraint(:spawn_room_id)
     |> foreign_key_constraint(:user_id)
   end
 end

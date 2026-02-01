@@ -91,6 +91,7 @@ defmodule RealmsWeb.ConnCase do
     # Pre-start the Player GenServer and grant sandbox access for LiveView tests
     {:ok, player_server_pid} = Realms.PlayerServer.ensure_started(player.id)
     allow_sandbox_access(player_server_pid)
+    Process.link(player_server_pid)
 
     result
     |> Map.put(:player, player)
@@ -118,6 +119,7 @@ defmodule RealmsWeb.ConnCase do
     # Pre-start the Player GenServer and grant sandbox access for LiveView tests
     {:ok, player_server_pid} = Realms.PlayerServer.ensure_started(player2.id)
     allow_sandbox_access(player_server_pid)
+    Process.link(player_server_pid)
 
     conn2 =
       Phoenix.ConnTest.build_conn()
