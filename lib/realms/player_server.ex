@@ -172,6 +172,10 @@ defmodule Realms.PlayerServer do
     # Monitor the LiveView process
     Process.monitor(view_pid)
 
+    if state.player.connection_status == :away do
+      broadcast_room_event(state.current_room_id, "#{state.player.name}'s eyes snap back into focus.")
+    end
+
     new_views = MapSet.put(state.connected_views, view_pid)
 
     {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :online})
