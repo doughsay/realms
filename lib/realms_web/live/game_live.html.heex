@@ -12,7 +12,12 @@
             id={dom_id}
             class="py-1"
           >
-            <div class="text-xs text-base-content/30">
+            <div
+              id={"#{dom_id}-timestamp"}
+              class="text-xs text-base-content/30"
+              phx-hook=".LocalTime"
+              data-timestamp={DateTime.to_iso8601(message.timestamp)}
+            >
               {Calendar.strftime(message.timestamp, "%H:%M:%S")}
             </div>
             <div
@@ -70,6 +75,31 @@
     },
     scrollToBottom() {
       this.el.scrollTop = this.el.scrollHeight;
+    }
+  }
+</script>
+
+<script :type={Phoenix.LiveView.ColocatedHook} name=".LocalTime">
+  export default {
+    mounted() {
+      this.formatTime();
+    },
+    updated() {
+      this.formatTime();
+    },
+    formatTime() {
+      const timestamp = this.el.dataset.timestamp;
+      if (timestamp) {
+        const date = new Date(timestamp);
+        // Format time in user's local timezone
+        const timeString = date.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+        this.el.textContent = timeString;
+      }
     }
   }
 </script>
