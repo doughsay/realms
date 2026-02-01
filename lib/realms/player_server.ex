@@ -14,6 +14,15 @@ defmodule Realms.PlayerServer do
   @no_views_timeout :timer.seconds(30)
   @max_messages 100
 
+  def child_spec(player_id) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [player_id]},
+      # Don't restart on :normal or :shutdown exits
+      restart: :transient
+    }
+  end
+
   defstruct [
     :player_id,
     :player,
