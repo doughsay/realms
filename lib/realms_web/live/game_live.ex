@@ -32,14 +32,6 @@ defmodule RealmsWeb.GameLive do
     {:ok, assign(socket, :player_id, nil)}
   end
 
-  def terminate(_reason, socket) do
-    if player_id = socket.assigns[:player_id] do
-      PlayerServer.unregister_view(player_id, self())
-    end
-
-    :ok
-  end
-
   def handle_event("validate", %{"command" => command_params}, socket) do
     {:noreply, assign(socket, :form, to_form(command_params, as: :command))}
   end

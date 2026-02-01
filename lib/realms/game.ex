@@ -153,7 +153,7 @@ defmodule Realms.Game do
   # Player functions
 
   @doc """
-  Gets a player by ID with current room and user preloaded.
+  Gets a player by ID with all room associations and user preloaded.
   Returns nil if not found.
   """
   def get_player(id) do
@@ -161,14 +161,14 @@ defmodule Realms.Game do
     |> Repo.get(id)
     |> case do
       nil -> nil
-      player -> Repo.preload(player, [:current_room, :user])
+      player -> Repo.preload(player, [:current_room, :spawn_room, :user])
     end
   end
 
   def get_player!(id) do
     Player
     |> Repo.get!(id)
-    |> Repo.preload(:current_room)
+    |> Repo.preload([:current_room, :spawn_room, :user])
   end
 
   @doc """
@@ -181,12 +181,15 @@ defmodule Realms.Game do
   end
 
   @doc """
-  Updates a player.
+  Updates a player and returns it with all associations preloaded.
   """
   def update_player(%Player{} = player, attrs) do
-    player
-    |> Player.changeset(attrs)
-    |> Repo.update()
+    with {:ok, updated_player} <-
+           player
+           |> Player.changeset(attrs)
+           |> Repo.update() do
+      {:ok, Repo.preload(updated_player, [:current_room, :spawn_room, :user], force: true)}
+    end
   end
 
   @doc """
