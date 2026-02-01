@@ -11,7 +11,8 @@ defmodule Realms.PlayerServer do
   alias Realms.Game
   alias RealmsWeb.Message
 
-  @no_views_timeout :timer.seconds(30)
+  @away_timeout :timer.seconds(10)
+  @shutdown_timeout :timer.seconds(30)
   @max_messages 100
 
   def child_spec(player_id) do
@@ -30,7 +31,9 @@ defmodule Realms.PlayerServer do
     :message_history,
     :connected_views,
     :last_activity_at,
-    :dets_table
+    :dets_table,
+    :away_timer_ref,
+    :shutdown_timer_ref
   ]
 
   # Client API
@@ -52,7 +55,6 @@ defmodule Realms.PlayerServer do
           {:ok, pid} ->
             {:ok, pid}
 
-          # Race condition: another process started it between our Registry check and now
           {:error, {:already_started, pid}} ->
             {:ok, pid}
 
@@ -108,13 +110,11 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def init(player_id) do
-    # Load player from database with preloads
     case Game.get_player(player_id) do
       nil ->
         {:stop, :player_not_found}
 
       player ->
-        # Open per-player DETS table
         table_name = dets_table_name(player_id)
         dets_path = dets_file_path(player_id)
         File.mkdir_p!(Path.dirname(dets_path))
@@ -125,7 +125,6 @@ defmodule Realms.PlayerServer do
             type: :set
           )
 
-        # Load history from DETS
         history = load_history_from_dets(table)
 
         player =
@@ -137,11 +136,10 @@ defmodule Realms.PlayerServer do
             player
           end
 
-        # Subscribe to room PubSub
         room_id = player.current_room.id
         Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(room_id))
 
-        broadcast_room_event(room_id, "#{player.name} has arrived!")
+        broadcast_connection_event(room_id, "#{player.name} has arrived!")
 
         state = %__MODULE__{
           player_id: player_id,
@@ -150,12 +148,13 @@ defmodule Realms.PlayerServer do
           message_history: history,
           connected_views: MapSet.new(),
           last_activity_at: DateTime.utc_now(),
-          dets_table: table
+          dets_table: table,
+          away_timer_ref: nil,
+          shutdown_timer_ref: nil
         }
 
         Logger.info("PlayerServer started for player #{player_id}")
 
-        # Show room description if no history (new player or fresh start)
         state =
           if history == [] do
             show_room_description(state)
@@ -169,21 +168,25 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_call({:register_view, view_pid}, _from, state) do
-    # Monitor the LiveView process
     Process.monitor(view_pid)
 
-    if state.player.connection_status == :away do
-      broadcast_room_event(
-        state.current_room_id,
-        "#{state.player.name}'s eyes snap back into focus."
-      )
-    end
+    state = cancel_all_timers(state)
+
+    state =
+      if state.player.connection_status == :away do
+        broadcast_connection_event(
+          state.current_room_id,
+          "#{state.player.name}'s eyes snap back into focus."
+        )
+
+        {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :online})
+        %{state | player: updated_player}
+      else
+        state
+      end
 
     new_views = MapSet.put(state.connected_views, view_pid)
-
-    {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :online})
-
-    new_state = %{state | connected_views: new_views, player: updated_player}
+    new_state = %{state | connected_views: new_views}
 
     Logger.debug("Registered view #{inspect(view_pid)} for player #{state.player_id}")
 
@@ -245,22 +248,36 @@ defmodule Realms.PlayerServer do
   end
 
   @impl true
-  def handle_info(:check_no_views_timeout, state) do
-    if MapSet.size(state.connected_views) == 0 do
-      # Still no views after timeout - shutdown
-      Logger.info("PlayerServer shutting down for player #{state.player_id} (no connected views)")
-      cleanup(state)
-      {:stop, :normal, state}
+  def handle_info(:away_timeout, state) do
+    if Enum.empty?(state.connected_views) do
+      {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :away})
+
+      broadcast_connection_event(
+        state.current_room_id,
+        "#{state.player.name}'s eyes glaze over."
+      )
+
+      new_state =
+        state
+        |> Map.put(:player, updated_player)
+        |> Map.put(:away_timer_ref, nil)
+        |> schedule_shutdown_timer()
+
+      {:noreply, new_state}
     else
-      # View reconnected in the meantime - stay alive
-      {:noreply, state}
+      {:noreply, %{state | away_timer_ref: nil}}
     end
   end
 
   @impl true
-  def terminate(_reason, state) do
-    Logger.info("PlayerServer terminated for player #{state.player_id}")
-    :ok
+  def handle_info(:shutdown_timeout, state) do
+    if Enum.empty?(state.connected_views) do
+      Logger.info("PlayerServer shutting down for player #{state.player_id} (no connected views)")
+      cleanup(state)
+      {:stop, :normal, state}
+    else
+      {:noreply, %{state | shutdown_timer_ref: nil}}
+    end
   end
 
   # Command Parser
@@ -355,7 +372,7 @@ defmodule Realms.PlayerServer do
   # Helper Functions
 
   defp cleanup(state) do
-    broadcast_room_event(
+    broadcast_connection_event(
       state.current_room_id,
       "#{state.player.name} disappears in a puff of smoke."
     )
@@ -374,16 +391,8 @@ defmodule Realms.PlayerServer do
     new_views = MapSet.delete(state.connected_views, view_pid)
     state = %{state | connected_views: new_views}
 
-    if MapSet.size(new_views) == 0 do
-      {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :away})
-
-      broadcast_room_event(
-        state.current_room_id,
-        "#{state.player.name}'s eyes have gone all unfocused."
-      )
-
-      Process.send_after(self(), :check_no_views_timeout, @no_views_timeout)
-      %{state | player: updated_player}
+    if Enum.empty?(new_views) do
+      schedule_away_timer(state)
     else
       state
     end
@@ -471,11 +480,47 @@ defmodule Realms.PlayerServer do
     Enum.any?(history, fn m -> m.id == message_id end)
   end
 
+  # Timer Management Helpers
+
+  defp cancel_all_timers(state) do
+    state
+    |> cancel_away_timer()
+    |> cancel_shutdown_timer()
+  end
+
+  defp cancel_away_timer(state) do
+    if state.away_timer_ref do
+      Process.cancel_timer(state.away_timer_ref)
+    end
+
+    %{state | away_timer_ref: nil}
+  end
+
+  defp cancel_shutdown_timer(state) do
+    if state.shutdown_timer_ref do
+      Process.cancel_timer(state.shutdown_timer_ref)
+    end
+
+    %{state | shutdown_timer_ref: nil}
+  end
+
+  defp schedule_away_timer(state) do
+    state = cancel_all_timers(state)
+    timer_ref = Process.send_after(self(), :away_timeout, @away_timeout)
+    %{state | away_timer_ref: timer_ref}
+  end
+
+  defp schedule_shutdown_timer(state) do
+    state = cancel_shutdown_timer(state)
+    timer_ref = Process.send_after(self(), :shutdown_timeout, @shutdown_timeout)
+    %{state | shutdown_timer_ref: timer_ref}
+  end
+
   # PubSub Helpers
 
   defp room_topic(room_id), do: "room:#{room_id}"
 
-  defp broadcast_room_event(room_id, text) do
+  defp broadcast_connection_event(room_id, text) do
     message =
       Message.new(
         :room_event,
@@ -484,8 +529,9 @@ defmodule Realms.PlayerServer do
         DateTime.utc_now()
       )
 
-    Phoenix.PubSub.broadcast(
+    Phoenix.PubSub.broadcast_from(
       Realms.PubSub,
+      self(),
       room_topic(room_id),
       {:game_message, message}
     )

@@ -257,7 +257,7 @@ defmodule Realms.PlayerServerTest do
       {:ok, pid} = start_player_server(player.id)
 
       # Simulate timeout
-      send(pid, :check_no_views_timeout)
+      send(pid, :shutdown_timeout)
 
       # Wait for process death
       ref = Process.monitor(pid)
