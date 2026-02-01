@@ -141,6 +141,8 @@ defmodule Realms.PlayerServer do
         room_id = player.current_room.id
         Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(room_id))
 
+        broadcast_room_event(room_id, "#{player.name} has arrived!")
+
         state = %__MODULE__{
           player_id: player_id,
           player: player,
@@ -346,6 +348,11 @@ defmodule Realms.PlayerServer do
   # Helper Functions
 
   defp cleanup(state) do
+    broadcast_room_event(
+      state.current_room_id,
+      "#{state.player.name} disappears in a puff of smoke."
+    )
+
     :dets.insert(state.dets_table, {:messages, state.message_history})
     :dets.close(state.dets_table)
 
@@ -362,6 +369,12 @@ defmodule Realms.PlayerServer do
 
     if MapSet.size(new_views) == 0 do
       {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :away})
+
+      broadcast_room_event(
+        state.current_room_id,
+        "#{state.player.name}'s eyes have gone all unfocused."
+      )
+
       Process.send_after(self(), :check_no_views_timeout, @no_views_timeout)
       %{state | player: updated_player}
     else
@@ -454,6 +467,22 @@ defmodule Realms.PlayerServer do
   # PubSub Helpers
 
   defp room_topic(room_id), do: "room:#{room_id}"
+
+  defp broadcast_room_event(room_id, text) do
+    message =
+      Message.new(
+        :room_event,
+        text,
+        Ecto.UUID.generate(),
+        DateTime.utc_now()
+      )
+
+    Phoenix.PubSub.broadcast(
+      Realms.PubSub,
+      room_topic(room_id),
+      {:game_message, message}
+    )
+  end
 
   defp broadcast_say(room_id, player_name, text) do
     message =
