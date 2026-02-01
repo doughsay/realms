@@ -4,8 +4,7 @@ defmodule RealmsWeb.GameLive do
   alias Realms.PlayerServer
   alias RealmsWeb.Message
 
-  def mount(_params, _session, %{assigns: %{player_id: player_id}} = socket)
-      when not is_nil(player_id) do
+  def mount(_params, %{"player_id" => player_id}, socket) do
     case PlayerServer.ensure_started(player_id) do
       {:ok, _pid} ->
         if connected?(socket) do

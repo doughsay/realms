@@ -125,27 +125,17 @@ defmodule RealmsWeb.UserAuth do
   end
 
   # This function renews the session ID and erases the whole
-  # session to avoid fixation attacks. If there is any data
-  # in the session you may want to preserve after log in/log out,
-  # you must explicitly fetch the session data before clearing
-  # and then immediately set it after clearing, for example:
-  #
-  #     defp renew_session(conn, _user) do
-  #       delete_csrf_token()
-  #       preferred_locale = get_session(conn, :preferred_locale)
-  #
-  #       conn
-  #       |> configure_session(renew: true)
-  #       |> clear_session()
-  #       |> put_session(:preferred_locale, preferred_locale)
-  #     end
-  #
+  # session to avoid fixation attacks. We preserve the player_id
+  # so users don't lose their selected character when the session
+  # is renewed for security purposes.
   defp renew_session(conn, _user) do
+    player_id = get_session(conn, :player_id)
     delete_csrf_token()
 
     conn
     |> configure_session(renew: true)
     |> clear_session()
+    |> put_session(:player_id, player_id)
   end
 
   defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}, _),
