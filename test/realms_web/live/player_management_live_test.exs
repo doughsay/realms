@@ -5,11 +5,7 @@ defmodule RealmsWeb.PlayerManagementLiveTest do
 
   describe "PlayerManagementLive" do
     setup %{conn: conn} do
-      # Clean up and create test room
-      Realms.Repo.delete_all(Realms.Game.Exit)
-      Realms.Repo.delete_all(Realms.Game.Room)
-      Realms.Repo.delete_all(Realms.Game.Player)
-
+      # Create test room
       {:ok, _town_square} =
         Realms.Game.create_room(%{
           name: "Town Square",

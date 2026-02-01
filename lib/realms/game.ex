@@ -256,4 +256,65 @@ defmodule Realms.Game do
     |> where([p], p.current_room_id == ^room_id)
     |> Repo.all()
   end
+
+  @doc """
+  Spawns a player in a room.
+  Sets current_room_id, connection_status to :online, and clears despawn_reason.
+  Returns {:ok, player} or {:error, changeset}.
+  """
+  def spawn_player(%Player{} = player, room_id) do
+    update_player(player, %{
+      current_room_id: room_id,
+      connection_status: :online,
+      despawn_reason: nil
+    })
+  end
+
+  @doc """
+  Despawns a player with the given reason.
+  Clears current_room_id, sets connection_status to :offline, records despawn_reason.
+  Updates spawn_room_id to preserve last location if current_room_id is set.
+  Returns {:ok, player} or {:error, changeset}.
+  """
+  def despawn_player(%Player{} = player, reason, opts \\ []) do
+    attrs = %{
+      connection_status: :offline,
+      despawn_reason: reason
+    }
+
+    attrs =
+      if player.current_room_id && !Keyword.get(opts, :skip_spawn_room_update, false) do
+        Map.put(attrs, :spawn_room_id, player.current_room_id)
+      else
+        attrs
+      end
+
+    attrs = Map.put(attrs, :current_room_id, nil)
+
+    update_player(player, attrs)
+  end
+
+  @doc """
+  Despawns all currently spawned players with the given reason.
+  Uses a bulk update for performance.
+  Returns {:ok, count} where count is the number of players despawned.
+  """
+  def despawn_all_players(reason) do
+    query =
+      from p in Player,
+        where: not is_nil(p.current_room_id),
+        update: [
+          set: [
+            spawn_room_id: fragment("COALESCE(current_room_id, spawn_room_id)"),
+            current_room_id: nil,
+            connection_status: :offline,
+            despawn_reason: ^reason,
+            updated_at: ^DateTime.utc_now()
+          ]
+        ]
+
+    {count, _} = Repo.update_all(query, [])
+
+    {:ok, count}
+  end
 end

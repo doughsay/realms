@@ -10,6 +10,7 @@ defmodule Realms.Application do
     children = [
       RealmsWeb.Telemetry,
       Realms.Repo,
+      Realms.ConnectionManager,
       {DNSCluster, query: Application.get_env(:realms, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Realms.PubSub},
 

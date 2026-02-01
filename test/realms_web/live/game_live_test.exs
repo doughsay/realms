@@ -3,20 +3,31 @@ defmodule RealmsWeb.GameLiveTest do
   import Phoenix.LiveViewTest
   alias Realms.Game
 
-  # Helper to execute command and wait for GenServer processing
-  defp execute_command_and_wait(view, command) do
+  # Helper to execute command
+  defp execute_command(view, command) do
     render_submit(view, :execute_command, %{command: %{command: command}})
-    # Small delay for async GenServer processing
-    Process.sleep(20)
+  end
+
+  # Helper to wait for content to appear in rendered view
+  defp assert_view_has(view, expected_content) do
+    assert eventually(fn ->
+             html = render(view)
+
+             if html =~ expected_content do
+               {:ok, html}
+             else
+               :error
+             end
+           end)
+  end
+
+  # Helper to assert content does NOT appear in rendered view
+  defp refute_view_has(view, unexpected_content) do
+    html = render(view)
+    refute html =~ unexpected_content
   end
 
   setup do
-    # Ensure the database is seeded with basic rooms
-    # Clean up any existing data
-    Realms.Repo.delete_all(Realms.Game.Exit)
-    Realms.Repo.delete_all(Realms.Game.Room)
-    Realms.Repo.delete_all(Realms.Game.Player)
-
     # Create test rooms
     {:ok, town_square} =
       Game.create_room(%{
@@ -40,10 +51,10 @@ defmodule RealmsWeb.GameLiveTest do
 
   describe "mount" do
     test "displays initial room description", %{conn: conn} do
-      {:ok, view, html} = live(conn, "/")
+      {:ok, view, _html} = live(conn, "/")
 
-      assert html =~ "Town Square"
-      assert html =~ "A bustling town square"
+      assert_view_has(view, "Town Square")
+      assert_view_has(view, "A bustling town square")
       assert has_element?(view, "#game-messages")
       assert has_element?(view, "#command-form")
     end
@@ -59,15 +70,12 @@ defmodule RealmsWeb.GameLiveTest do
     test "maintains message history", %{conn: conn} do
       # Connect and execute some commands
       {:ok, view, _html} = live(conn, "/")
-      execute_command_and_wait(view, "look")
-      execute_command_and_wait(view, "say test")
-
-      # Get current HTML
-      html = render(view)
+      execute_command(view, "look")
+      execute_command(view, "say test")
 
       # Should show both messages in history
-      assert html =~ "Town Square"
-      assert html =~ "says: test"
+      assert_view_has(view, "Town Square")
+      assert_view_has(view, "says: test")
     end
   end
 
@@ -76,12 +84,11 @@ defmodule RealmsWeb.GameLiveTest do
       {:ok, view, _html} = live(conn, "/")
 
       # Move north
-      execute_command_and_wait(view, "north")
-      html = render(view)
+      execute_command(view, "north")
 
       # Should show new room description
-      assert html =~ "The Rusty Tankard"
-      assert html =~ "A cozy tavern"
+      assert_view_has(view, "The Rusty Tankard")
+      assert_view_has(view, "A cozy tavern")
       # Note: Town Square still appears in history, which is expected
     end
 
@@ -89,10 +96,9 @@ defmodule RealmsWeb.GameLiveTest do
       {:ok, view, _html} = live(conn, "/")
 
       # Try to go east (no exit in that direction)
-      execute_command_and_wait(view, "east")
-      html = render(view)
+      execute_command(view, "east")
 
-      assert html =~ "You can&#39;t go that way"
+      assert_view_has(view, "You can&#39;t go that way")
     end
 
     test "broadcasts departure to old room", %{conn: conn} do
@@ -104,40 +110,38 @@ defmodule RealmsWeb.GameLiveTest do
       {:ok, view2, _html} = live(conn2, "/")
 
       # Player 1 moves north
-      execute_command_and_wait(view1, "north")
+      execute_command(view1, "north")
 
       # Player 2 should see departure message
-      html2 = render(view2)
-      assert html2 =~ "leaves to the north"
+      assert_view_has(view2, "leaves to the north")
     end
 
     test "broadcasts arrival to new room", %{conn: conn} do
       # Player 1 starts in tavern
       {:ok, view1, _html} = live(conn, "/")
-      execute_command_and_wait(view1, "north")
+      execute_command(view1, "north")
 
       # Player 2 joins and goes to tavern
       %{conn2: conn2} = create_second_player()
       {:ok, view2, _html} = live(conn2, "/")
 
       # Player 2 moves north to join player 1
-      execute_command_and_wait(view2, "north")
+      execute_command(view2, "north")
 
       # Player 1 should see arrival message
-      html1 = render(view1)
-      assert html1 =~ "arrives from the south"
+      assert_view_has(view1, "arrives from the south")
     end
 
     test "moving player doesn't see their own arrival/departure", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "north")
-      html = render(view)
+      execute_command(view, "north")
+      _html = render(view)
 
       # Should see new room description but not arrival/departure messages
-      assert html =~ "The Rusty Tankard"
-      refute html =~ "leaves to"
-      refute html =~ "arrives from"
+      assert_view_has(view, "The Rusty Tankard")
+      refute_view_has(view, "leaves to")
+      refute_view_has(view, "arrives from")
     end
   end
 
@@ -148,14 +152,11 @@ defmodule RealmsWeb.GameLiveTest do
       {:ok, view2, _html} = live(conn2, "/")
 
       # Player 1 says something
-      execute_command_and_wait(view1, "say hello world")
+      execute_command(view1, "say hello world")
 
       # Both players should see the message
-      html1 = render(view1)
-      html2 = render(view2)
-
-      assert html1 =~ "says: hello world"
-      assert html2 =~ "says: hello world"
+      assert_view_has(view1, "says: hello world")
+      assert_view_has(view2, "says: hello world")
     end
 
     test "message is not seen in different room", %{conn: conn} do
@@ -164,32 +165,27 @@ defmodule RealmsWeb.GameLiveTest do
       # Player 2 starts in tavern
       %{conn2: conn2} = create_second_player()
       {:ok, view2, _html} = live(conn2, "/")
-      execute_command_and_wait(view2, "north")
+      execute_command(view2, "north")
 
       # Player 1 says something in town square
-      execute_command_and_wait(view1, "say testing")
+      execute_command(view1, "say testing")
 
       # Player 2 in tavern should not see it
-      html2 = render(view2)
-      refute html2 =~ "says: testing"
+      refute_view_has(view2, "says: testing")
     end
 
     test "empty say command shows error", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "say")
-      html = render(view)
-
-      assert html =~ "Say what?"
+      execute_command(view, "say")
+      assert_view_has(view, "Say what?")
     end
 
     test "say with only whitespace shows error", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "say    ")
-      html = render(view)
-
-      assert html =~ "Say what?"
+      execute_command(view, "say    ")
+      assert_view_has(view, "Say what?")
     end
   end
 
@@ -197,11 +193,9 @@ defmodule RealmsWeb.GameLiveTest do
     test "shows current room description", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "look")
-      html = render(view)
-
-      assert html =~ "Town Square"
-      assert html =~ "A bustling town square"
+      execute_command(view, "look")
+      assert_view_has(view, "Town Square")
+      assert_view_has(view, "A bustling town square")
     end
 
     test "shows other players in room", %{conn: conn, player: player} do
@@ -211,20 +205,18 @@ defmodule RealmsWeb.GameLiveTest do
       %{conn2: conn2} = create_second_player()
       {:ok, view2, _html} = live(conn2, "/")
 
-      execute_command_and_wait(view2, "look")
-      html = render(view2)
-
-      assert html =~ "Also here:"
-      assert html =~ player.name
+      execute_command(view2, "look")
+      assert_view_has(view2, "Also here:")
+      assert_view_has(view2, player.name)
     end
 
     test "doesn't show 'Also here' when alone", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "look")
-      html = render(view)
+      execute_command(view, "look")
+      _html = render(view)
 
-      refute html =~ "Also here:"
+      refute_view_has(view, "Also here:")
     end
   end
 
@@ -232,10 +224,8 @@ defmodule RealmsWeb.GameLiveTest do
     test "lists available exits", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "exits")
-      html = render(view)
-
-      assert html =~ "Obvious exits: north"
+      execute_command(view, "exits")
+      assert_view_has(view, "Obvious exits: north")
     end
   end
 
@@ -243,12 +233,10 @@ defmodule RealmsWeb.GameLiveTest do
     test "shows help text", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "help")
-      html = render(view)
-
-      assert html =~ "Available commands"
-      assert html =~ "Movement:"
-      assert html =~ "say &lt;message&gt;"
+      execute_command(view, "help")
+      assert_view_has(view, "Available commands")
+      assert_view_has(view, "Movement:")
+      assert_view_has(view, "say &lt;message&gt;")
     end
   end
 
@@ -256,11 +244,9 @@ defmodule RealmsWeb.GameLiveTest do
     test "shows error for unknown command", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "foobar")
-      html = render(view)
-
-      assert html =~ "I don&#39;t understand &#39;foobar&#39;"
-      assert html =~ "Type &#39;help&#39; for commands"
+      execute_command(view, "foobar")
+      assert_view_has(view, "I don&#39;t understand &#39;foobar&#39;")
+      assert_view_has(view, "Type &#39;help&#39; for commands")
     end
   end
 
@@ -268,12 +254,12 @@ defmodule RealmsWeb.GameLiveTest do
     test "does nothing for empty command", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "")
-      html = render(view)
+      execute_command(view, "")
+      _html = render(view)
 
       # Should not show any error or new message
       # Just verify it doesn't crash
-      assert html =~ "Town Square"
+      assert_view_has(view, "Town Square")
     end
   end
 
@@ -281,7 +267,7 @@ defmodule RealmsWeb.GameLiveTest do
     test "clears input after command execution", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      execute_command_and_wait(view, "look")
+      execute_command(view, "look")
 
       # Form should be cleared
       assert has_element?(view, "input[value='']")
@@ -357,7 +343,7 @@ defmodule RealmsWeb.GameLiveTest do
       assert Process.alive?(player1_genserver)
 
       # Player 2 says something while Player 1 is disconnected
-      execute_command_and_wait(view2, "say hello while you were gone")
+      execute_command(view2, "say hello while you were gone")
 
       # Give time for PubSub to deliver to Player 1's GenServer
       Process.sleep(50)
@@ -373,8 +359,7 @@ defmodule RealmsWeb.GameLiveTest do
       {:ok, view1_new, _html} = live(conn, "/")
 
       # The reconnected view should show the missed message
-      html = render(view1_new)
-      assert html =~ "hello while you were gone"
+      assert_view_has(view1_new, "hello while you were gone")
     end
 
     test "missed messages persist across reconnection", %{conn: conn} do
@@ -391,9 +376,9 @@ defmodule RealmsWeb.GameLiveTest do
       Process.sleep(20)
 
       # Player 2 sends multiple messages while Player 1 is offline
-      execute_command_and_wait(view2, "say message 1")
-      execute_command_and_wait(view2, "say message 2")
-      execute_command_and_wait(view2, "say message 3")
+      execute_command(view2, "say message 1")
+      execute_command(view2, "say message 2")
+      execute_command(view2, "say message 3")
 
       # Give time for messages to be processed
       Process.sleep(50)

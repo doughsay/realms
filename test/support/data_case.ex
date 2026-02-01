@@ -24,6 +24,7 @@ defmodule Realms.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       import Realms.DataCase
+      import Liveness
     end
   end
 
