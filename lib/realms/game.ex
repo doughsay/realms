@@ -305,7 +305,7 @@ defmodule Realms.Game do
         where: not is_nil(p.current_room_id),
         update: [
           set: [
-            spawn_room_id: fragment("COALESCE(current_room_id, spawn_room_id)"),
+            spawn_room_id: coalesce(p.current_room_id, p.spawn_room_id),
             current_room_id: nil,
             connection_status: :offline,
             despawn_reason: ^reason,
