@@ -1,9 +1,9 @@
 defmodule RealmsWeb.UserLive.Settings do
   use RealmsWeb, :live_view
 
-  on_mount {RealmsWeb.UserAuth, :require_sudo_mode}
-
   alias Realms.Accounts
+
+  on_mount {RealmsWeb.UserAuth, :require_sudo_mode}
 
   @impl true
   def render(assigns) do

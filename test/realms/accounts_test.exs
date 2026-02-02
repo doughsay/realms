@@ -1,9 +1,9 @@
 defmodule Realms.AccountsTest do
   use Realms.DataCase
 
-  alias Realms.Accounts
-
   import Realms.AccountsFixtures
+
+  alias Realms.Accounts
   alias Realms.Accounts.{User, UserToken}
 
   describe "get_user_by_email/1" do
@@ -278,7 +278,7 @@ defmodule Realms.AccountsTest do
       token = Accounts.generate_user_session_token(user)
       assert user_token = Repo.get_by(UserToken, token: token)
       assert user_token.authenticated_at == user.authenticated_at
-      assert DateTime.compare(user_token.inserted_at, user.authenticated_at) == :gt
+      assert DateTime.after?(user_token.inserted_at, user.authenticated_at)
     end
   end
 

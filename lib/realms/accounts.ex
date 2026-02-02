@@ -4,9 +4,9 @@ defmodule Realms.Accounts do
   """
 
   import Ecto.Query, warn: false
-  alias Realms.Repo
 
   alias Realms.Accounts.{User, UserToken, UserNotifier}
+  alias Realms.Repo
 
   ## Database getters
 

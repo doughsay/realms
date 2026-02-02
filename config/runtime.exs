@@ -20,15 +20,15 @@ if System.get_env("PHX_SERVER") do
   config :realms, RealmsWeb.Endpoint, server: true
 end
 
-config :realms, RealmsWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
-
 # Configure DETS storage path
 # In development: uses priv/dets (will be recreated if deleted)
 # In production: use DETS_PATH env var to point to persistent storage
 dets_path =
   System.get_env("DETS_PATH") ||
     Path.join([Application.app_dir(:realms, "priv"), "dets"])
+
+config :realms, RealmsWeb.Endpoint,
+  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 config :realms, :dets_path, dets_path
 
@@ -41,14 +41,6 @@ if config_env() == :prod do
       """
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
-
-  config :realms, Realms.Repo,
-    # ssl: true,
-    url: database_url,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
-    # For machines with several cores, consider starting multiple pools of `pool_size`
-    # pool_count: 4,
-    socket_options: maybe_ipv6
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
@@ -64,7 +56,13 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
-  config :realms, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+  config :realms, Realms.Repo,
+    # ssl: true,
+    url: database_url,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+    # For machines with several cores, consider starting multiple pools of `pool_size`
+    # pool_count: 4,
+    socket_options: maybe_ipv6
 
   config :realms, RealmsWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
@@ -76,6 +74,8 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0}
     ],
     secret_key_base: secret_key_base
+
+  config :realms, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   # ## SSL Support
   #
