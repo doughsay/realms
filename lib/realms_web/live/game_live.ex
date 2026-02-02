@@ -1,8 +1,8 @@
 defmodule RealmsWeb.GameLive do
   use RealmsWeb, :live_view
 
+  alias Realms.Messaging.Message
   alias Realms.PlayerServer
-  alias RealmsWeb.Message
 
   def mount(_params, %{"player_id" => player_id}, socket) do
     case PlayerServer.ensure_started(player_id) do

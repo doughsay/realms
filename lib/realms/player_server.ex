@@ -9,12 +9,13 @@ defmodule Realms.PlayerServer do
 
   alias Realms.Game
   alias Realms.Game.Player
-  alias RealmsWeb.Message
+  alias Realms.Messaging
+  alias Realms.Messaging.Message
 
   require Logger
 
-  @away_timeout :timer.seconds(10)
-  @shutdown_timeout :timer.seconds(30)
+  @away_timeout to_timeout(second: 10)
+  @shutdown_timeout to_timeout(second: 30)
   @max_messages 100
 
   def child_spec(player_id) do
@@ -139,7 +140,7 @@ defmodule Realms.PlayerServer do
           end
 
         room_id = player.current_room.id
-        Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(room_id))
+        Messaging.subscribe_to_room(room_id)
 
         broadcast_connection_event(room_id, "#{player.name} has arrived!")
 
@@ -182,12 +183,12 @@ defmodule Realms.PlayerServer do
         state
       end
 
-    new_views = MapSet.put(state.connected_views, view_pid)
-    new_state = %{state | connected_views: new_views}
+    views = MapSet.put(state.connected_views, view_pid)
+    state = %{state | connected_views: views}
 
     Logger.debug("Registered view #{inspect(view_pid)} for player #{state.player_id}")
 
-    {:reply, :ok, new_state}
+    {:reply, :ok, state}
   end
 
   @impl true
@@ -214,23 +215,21 @@ defmodule Realms.PlayerServer do
   @impl true
   def handle_cast({:handle_input, input}, state) do
     command_echo = Message.new(:command_echo, "> #{input}")
-    state = append_and_broadcast_local(state, command_echo)
+    state = append_to_history_and_send_to_views(state, command_echo)
 
-    new_state =
+    state =
       input
       |> parse_command()
       |> execute_command(state)
 
-    {:noreply, %{new_state | last_activity_at: DateTime.utc_now()}}
+    {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
   end
 
   @impl true
   def handle_info({:game_message, %Message{} = message}, state) do
-    new_state = append_message_to_history(state, message)
+    state = append_to_history_and_send_to_views(state, message)
 
-    broadcast_to_views(new_state, {:game_message, message})
-
-    {:noreply, new_state}
+    {:noreply, state}
   end
 
   @impl true
@@ -249,13 +248,13 @@ defmodule Realms.PlayerServer do
         "#{state.player.name}'s eyes glaze over."
       )
 
-      new_state =
+      state =
         state
         |> Map.put(:player, updated_player)
         |> Map.put(:away_timer_ref, nil)
         |> schedule_shutdown_timer()
 
-      {:noreply, new_state}
+      {:noreply, state}
     else
       {:noreply, %{state | away_timer_ref: nil}}
     end
@@ -309,7 +308,7 @@ defmodule Realms.PlayerServer do
 
   defp execute_command(:exits, state) do
     message = Message.new(:info, format_exits(state.player.current_room))
-    append_and_broadcast_local(state, message)
+    append_to_history_and_send_to_views(state, message)
   end
 
   defp execute_command(:help, state) do
@@ -323,13 +322,13 @@ defmodule Realms.PlayerServer do
     """
 
     message = Message.new(:info, help_text)
-    append_and_broadcast_local(state, message)
+    append_to_history_and_send_to_views(state, message)
   end
 
   defp execute_command({:say, message_text}, state) do
     if String.trim(message_text) == "" do
       message = Message.new(:error, "Say what?")
-      append_and_broadcast_local(state, message)
+      append_to_history_and_send_to_views(state, message)
     else
       broadcast_say(state.current_room_id, state.player.name, message_text)
       state
@@ -346,8 +345,8 @@ defmodule Realms.PlayerServer do
         broadcast_departure(old_room_id, player.name, direction)
 
         # 2. Switch room subscriptions
-        Phoenix.PubSub.unsubscribe(Realms.PubSub, room_topic(old_room_id))
-        Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(new_room.id))
+        Messaging.unsubscribe_from_room(old_room_id)
+        Messaging.subscribe_to_room(new_room.id)
 
         # 3. Broadcast arrival to new room
         reverse_dir = reverse_direction(direction)
@@ -356,18 +355,18 @@ defmodule Realms.PlayerServer do
         # 4. Update state and show new room
         updated_player = Game.get_player!(player.id)
 
-        new_state = %{state | player: updated_player, current_room_id: new_room.id}
-        show_room_description(new_state)
+        state = %{state | player: updated_player, current_room_id: new_room.id}
+        show_room_description(state)
 
       {:error, :no_exit} ->
         message = Message.new(:error, "You can't go that way.")
-        append_and_broadcast_local(state, message)
+        append_to_history_and_send_to_views(state, message)
     end
   end
 
   defp execute_command({:unknown, command}, state) do
     message = Message.new(:error, "I don't understand '#{command}'. Type 'help' for commands.")
-    append_and_broadcast_local(state, message)
+    append_to_history_and_send_to_views(state, message)
   end
 
   # Helper Functions
@@ -382,10 +381,10 @@ defmodule Realms.PlayerServer do
   end
 
   defp disconnect_view(state, view_pid) do
-    new_views = MapSet.delete(state.connected_views, view_pid)
-    state = %{state | connected_views: new_views}
+    views = MapSet.delete(state.connected_views, view_pid)
+    state = %{state | connected_views: views}
 
-    if Enum.empty?(new_views) do
+    if Enum.empty?(views) do
       schedule_away_timer(state)
     else
       state
@@ -408,7 +407,7 @@ defmodule Realms.PlayerServer do
     #{format_exits(room)}
     """
 
-    state = append_and_broadcast_local(state, Message.new(:room, content))
+    state = append_to_history_and_send_to_views(state, Message.new(:room, content))
 
     if other_players == [] do
       state
@@ -423,7 +422,7 @@ defmodule Realms.PlayerServer do
         end)
 
       message = Message.new(:players, "Also here: #{player_names}")
-      append_and_broadcast_local(state, message)
+      append_to_history_and_send_to_views(state, message)
     end
   end
 
@@ -456,16 +455,12 @@ defmodule Realms.PlayerServer do
     end
   end
 
-  defp append_and_broadcast_local(state, message) do
-    new_state = append_message_to_history(state, message)
-    broadcast_to_views(new_state, {:game_message, message})
-    new_state
-  end
-
-  defp broadcast_to_views(state, message) do
+  defp append_to_history_and_send_to_views(state, message) do
     Enum.each(state.connected_views, fn view_pid ->
-      send(view_pid, message)
+      send(view_pid, {:game_message, message})
     end)
+
+    append_message_to_history(state, message)
   end
 
   defp message_exists?(history, message_id) do
@@ -510,73 +505,24 @@ defmodule Realms.PlayerServer do
 
   # PubSub Helpers
 
-  defp room_topic(room_id), do: "room:#{room_id}"
-
   defp broadcast_connection_event(room_id, text) do
-    message =
-      Message.new(
-        :room_event,
-        text,
-        Ecto.UUID.generate(),
-        DateTime.utc_now()
-      )
-
-    Phoenix.PubSub.broadcast_from(
-      Realms.PubSub,
-      self(),
-      room_topic(room_id),
-      {:game_message, message}
-    )
+    message = Message.new(:room_event, text)
+    Messaging.send_to_room(room_id, message, exclude: self())
   end
 
   defp broadcast_say(room_id, player_name, text) do
-    message =
-      Message.new(
-        :say,
-        "#{player_name} says: #{text}",
-        Ecto.UUID.generate(),
-        DateTime.utc_now()
-      )
-
-    Phoenix.PubSub.broadcast(
-      Realms.PubSub,
-      room_topic(room_id),
-      {:game_message, message}
-    )
+    message = Message.new(:say, "#{player_name} says: #{text}")
+    Messaging.send_to_room(room_id, message)
   end
 
   defp broadcast_departure(room_id, player_name, direction) do
-    message =
-      Message.new(
-        :room_event,
-        "#{player_name} leaves to the #{direction}.",
-        Ecto.UUID.generate(),
-        DateTime.utc_now()
-      )
-
-    Phoenix.PubSub.broadcast_from(
-      Realms.PubSub,
-      self(),
-      room_topic(room_id),
-      {:game_message, message}
-    )
+    message = Message.new(:room_event, "#{player_name} leaves to the #{direction}.")
+    Messaging.send_to_room(room_id, message, exclude: self())
   end
 
   defp broadcast_arrival(room_id, player_name, from_direction) do
-    message =
-      Message.new(
-        :room_event,
-        "#{player_name} arrives from the #{from_direction}.",
-        Ecto.UUID.generate(),
-        DateTime.utc_now()
-      )
-
-    Phoenix.PubSub.broadcast_from(
-      Realms.PubSub,
-      self(),
-      room_topic(room_id),
-      {:game_message, message}
-    )
+    message = Message.new(:room_event, "#{player_name} arrives from the #{from_direction}.")
+    Messaging.send_to_room(room_id, message, exclude: self())
   end
 
   defp reverse_direction("north"), do: "south"

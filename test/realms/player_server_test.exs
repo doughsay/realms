@@ -2,8 +2,8 @@ defmodule Realms.PlayerServerTest do
   use Realms.DataCase
 
   alias Realms.Game
+  alias Realms.Messaging.Message
   alias Realms.PlayerServer
-  alias RealmsWeb.Message
 
   # Helper to start Player GenServer with sandbox access
   defp start_player_server(player_id) do
@@ -247,7 +247,7 @@ defmodule Realms.PlayerServerTest do
       initial_length = length(initial_history)
 
       # Create a message
-      message = Message.new(:say, "test message", "unique-id-123", DateTime.utc_now())
+      message = Message.new(:say, "test message")
 
       # Send the same message twice
       send(pid, {:game_message, message})
