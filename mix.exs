@@ -73,6 +73,7 @@ defmodule Realms.MixProject do
       {:phoenix_live_view, "~> 1.1.0"},
       {:phoenix, "~> 1.8.3"},
       {:postgrex, ">= 0.0.0"},
+      {:quokka, "~> 2.11", only: [:dev, :test], runtime: false},
       {:req, "~> 0.5"},
       {:swoosh, "~> 1.16"},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},

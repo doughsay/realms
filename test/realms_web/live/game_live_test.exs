@@ -1,6 +1,8 @@
 defmodule RealmsWeb.GameLiveTest do
   use RealmsWeb.ConnCase
+
   import Phoenix.LiveViewTest
+
   alias Realms.Game
 
   # Helper to execute command

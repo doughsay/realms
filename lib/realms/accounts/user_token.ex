@@ -1,6 +1,8 @@
 defmodule Realms.Accounts.UserToken do
   use Ecto.Schema
+
   import Ecto.Query
+
   alias Realms.Accounts.UserToken
 
   @hash_algorithm :sha256

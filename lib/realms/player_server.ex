@@ -6,11 +6,12 @@ defmodule Realms.PlayerServer do
   Handles PubSub subscriptions, message history, and command execution.
   """
   use GenServer
-  require Logger
 
   alias Realms.Game
   alias Realms.Game.Player
   alias RealmsWeb.Message
+
+  require Logger
 
   @away_timeout :timer.seconds(10)
   @shutdown_timeout :timer.seconds(30)
@@ -409,7 +410,9 @@ defmodule Realms.PlayerServer do
 
     state = append_and_broadcast_local(state, Message.new(:room, content))
 
-    if other_players != [] do
+    if other_players == [] do
+      state
+    else
       player_names =
         Enum.map_join(other_players, ", ", fn player ->
           if player.connection_status == :away do
@@ -421,8 +424,6 @@ defmodule Realms.PlayerServer do
 
       message = Message.new(:players, "Also here: #{player_names}")
       append_and_broadcast_local(state, message)
-    else
-      state
     end
   end
 

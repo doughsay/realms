@@ -19,16 +19,16 @@ defmodule RealmsWeb.ConnCase do
 
   using do
     quote do
+      use RealmsWeb, :verified_routes
+
+      import Liveness
+      import Phoenix.ConnTest
+      import Plug.Conn
+      import RealmsWeb.ConnCase
       # The default endpoint for testing
       @endpoint RealmsWeb.Endpoint
 
-      use RealmsWeb, :verified_routes
-
       # Import conveniences for testing with connections
-      import Plug.Conn
-      import Phoenix.ConnTest
-      import RealmsWeb.ConnCase
-      import Liveness
     end
   end
 
@@ -52,7 +52,7 @@ defmodule RealmsWeb.ConnCase do
     opts =
       context
       |> Map.take([:token_authenticated_at])
-      |> Enum.into([])
+      |> Enum.to_list()
 
     %{conn: log_in_user(conn, user, opts), user: user, scope: scope}
   end

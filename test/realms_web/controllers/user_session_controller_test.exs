@@ -2,6 +2,7 @@ defmodule RealmsWeb.UserSessionControllerTest do
   use RealmsWeb.ConnCase, async: true
 
   import Realms.AccountsFixtures
+
   alias Realms.Accounts
 
   setup do

@@ -1,9 +1,9 @@
 defmodule Realms.GameTest do
   use Realms.DataCase
 
-  alias Realms.Game
-
   import Realms.AccountsFixtures
+
+  alias Realms.Game
 
   setup do
     # Create test rooms

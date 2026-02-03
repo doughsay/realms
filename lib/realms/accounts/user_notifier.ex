@@ -1,8 +1,8 @@
 defmodule Realms.Accounts.UserNotifier do
   import Swoosh.Email
 
-  alias Realms.Mailer
   alias Realms.Accounts.User
+  alias Realms.Mailer
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do

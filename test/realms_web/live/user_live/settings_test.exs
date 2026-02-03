@@ -1,9 +1,10 @@
 defmodule RealmsWeb.UserLive.SettingsTest do
   use RealmsWeb.ConnCase, async: true
 
-  alias Realms.Accounts
   import Phoenix.LiveViewTest
   import Realms.AccountsFixtures
+
+  alias Realms.Accounts
 
   describe "Settings page" do
     test "renders settings page", %{conn: conn} do

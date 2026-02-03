@@ -4,8 +4,9 @@ defmodule Realms.Game do
   """
 
   import Ecto.Query
-  alias Realms.Repo
+
   alias Realms.Game.{Room, Exit, Player}
+  alias Realms.Repo
 
   # Room functions
 
@@ -146,8 +147,7 @@ defmodule Realms.Game do
   def get_available_exits(room_id) do
     room_id
     |> list_exits_from_room()
-    |> Enum.map(fn exit -> {exit.direction, exit.to_room.name} end)
-    |> Map.new()
+    |> Map.new(fn exit -> {exit.direction, exit.to_room.name} end)
   end
 
   # Player functions

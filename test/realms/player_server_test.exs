@@ -1,7 +1,8 @@
 defmodule Realms.PlayerServerTest do
   use Realms.DataCase
-  alias Realms.PlayerServer
+
   alias Realms.Game
+  alias Realms.PlayerServer
   alias RealmsWeb.Message
 
   # Helper to start Player GenServer with sandbox access
@@ -80,7 +81,7 @@ defmodule Realms.PlayerServerTest do
 
       # Should have initial room description
       assert is_list(history)
-      assert length(history) > 0
+      refute Enum.empty?(history)
       assert Enum.any?(history, fn msg -> msg.content =~ "Town Square" end)
     end
   end

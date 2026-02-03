@@ -1,10 +1,10 @@
 defmodule Realms.ConnectionManagerTest do
   use Realms.DataCase
 
+  import Realms.AccountsFixtures
+
   alias Realms.ConnectionManager
   alias Realms.Game
-
-  import Realms.AccountsFixtures
 
   setup do
     # Create test room

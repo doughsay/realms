@@ -8,8 +8,10 @@ defmodule Realms.ConnectionManager do
   """
 
   use GenServer
-  require Logger
+
   alias Realms.Game
+
+  require Logger
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)

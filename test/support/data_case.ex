@@ -18,13 +18,13 @@ defmodule Realms.DataCase do
 
   using do
     quote do
-      alias Realms.Repo
-
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
-      import Realms.DataCase
       import Liveness
+      import Realms.DataCase
+
+      alias Realms.Repo
     end
   end
 
