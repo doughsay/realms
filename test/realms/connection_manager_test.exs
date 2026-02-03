@@ -61,8 +61,8 @@ defmodule Realms.ConnectionManagerTest do
       assert is_nil(player2.current_room_id)
       assert player1.connection_status == :offline
       assert player2.connection_status == :offline
-      assert player1.despawn_reason == "server_restart"
-      assert player2.despawn_reason == "server_restart"
+      assert player1.despawn_reason == "server_start"
+      assert player2.despawn_reason == "server_start"
 
       # Cleanup
       GenServer.stop(pid)
@@ -80,7 +80,7 @@ defmodule Realms.ConnectionManagerTest do
       GenServer.stop(pid)
     end
 
-    test "sets despawn_reason to server_restart", %{room: room} do
+    test "sets despawn_reason to server_start", %{room: room} do
       user = user_fixture()
 
       {:ok, player} =
@@ -98,7 +98,7 @@ defmodule Realms.ConnectionManagerTest do
       Process.sleep(50)
 
       player = Game.get_player!(player.id)
-      assert player.despawn_reason == "server_restart"
+      assert player.despawn_reason == "server_start"
 
       GenServer.stop(pid)
     end
@@ -166,7 +166,7 @@ defmodule Realms.ConnectionManagerTest do
       assert player.despawn_reason == "server_shutdown"
     end
 
-    test "sets server_restart reason on abnormal termination", %{room: room} do
+    test "sets server_shutdown reason on abnormal termination", %{room: room} do
       user = user_fixture()
 
       {:ok, player} =
@@ -193,7 +193,7 @@ defmodule Realms.ConnectionManagerTest do
 
       player = Game.get_player!(player.id)
       assert is_nil(player.current_room_id)
-      assert player.despawn_reason == "server_restart"
+      assert player.despawn_reason == "server_shutdown"
     end
   end
 

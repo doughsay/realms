@@ -9,6 +9,7 @@ defmodule Realms.PlayerServer do
   require Logger
 
   alias Realms.Game
+  alias Realms.Game.Player
   alias RealmsWeb.Message
 
   @away_timeout :timer.seconds(10)
@@ -126,23 +127,20 @@ defmodule Realms.PlayerServer do
 
         history = load_history_from_dets(table)
 
-        needs_spawn = is_nil(player.current_room_id)
-        is_server_restart = player.despawn_reason == "server_restart"
-
         player =
-          if needs_spawn do
-            {:ok, updated_player} = Game.spawn_player(player, player.spawn_room.id)
-            updated_player
-          else
-            player
+          case player do
+            %Player{current_room_id: nil} ->
+              {:ok, updated_player} = Game.spawn_player(player, player.spawn_room.id)
+              updated_player
+
+            _ ->
+              player
           end
 
         room_id = player.current_room.id
         Phoenix.PubSub.subscribe(Realms.PubSub, room_topic(room_id))
 
-        if needs_spawn and not is_server_restart do
-          broadcast_connection_event(room_id, "#{player.name} has arrived!")
-        end
+        broadcast_connection_event(room_id, "#{player.name} has arrived!")
 
         state = %__MODULE__{
           player_id: player_id,
@@ -156,14 +154,9 @@ defmodule Realms.PlayerServer do
           shutdown_timer_ref: nil
         }
 
-        Logger.info("PlayerServer started for player #{player_id}")
+        state = show_room_description(state)
 
-        state =
-          if history == [] do
-            show_room_description(state)
-          else
-            state
-          end
+        Logger.info("PlayerServer started for player #{player_id}")
 
         {:ok, state}
     end
