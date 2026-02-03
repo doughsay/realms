@@ -17,6 +17,7 @@ defmodule Realms.Application do
       # Player GenServer infrastructure
       {Registry, keys: :unique, name: Realms.PlayerRegistry},
       {DynamicSupervisor, strategy: :one_for_one, name: Realms.PlayerSupervisor},
+      {Task.Supervisor, name: Realms.CommandSupervisor},
 
       # Start to serve requests, typically the last entry
       RealmsWeb.Endpoint

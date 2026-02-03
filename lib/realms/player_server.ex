@@ -7,8 +7,8 @@ defmodule Realms.PlayerServer do
   """
   use GenServer
 
+  alias Realms.Commands
   alias Realms.Game
-  alias Realms.Game.Player
   alias Realms.Messaging
   alias Realms.Messaging.Message
 
@@ -28,8 +28,7 @@ defmodule Realms.PlayerServer do
 
   defstruct [
     :player_id,
-    :player,
-    :current_room_id,
+    :player_name,
     :message_history,
     :connected_views,
     :last_activity_at,
@@ -90,18 +89,18 @@ defmodule Realms.PlayerServer do
   end
 
   @doc """
-  Gets the current player state.
-  Returns %{player: player, current_room: room}.
-  """
-  def get_state(player_id) do
-    GenServer.call(via_tuple(player_id), :get_state)
-  end
-
-  @doc """
   Retrieves message history for this player.
   """
   def get_history(player_id) do
     GenServer.call(via_tuple(player_id), :get_history)
+  end
+
+  @doc """
+  Changes room subscriptions for this player.
+  Called when the player moves to a new room.
+  """
+  def change_room_subscription(player_id, old_room_id, new_room_id) do
+    GenServer.cast(via_tuple(player_id), {:change_room_subscription, old_room_id, new_room_id})
   end
 
   # Server Callbacks
@@ -130,24 +129,23 @@ defmodule Realms.PlayerServer do
         history = load_history_from_dets(table)
 
         player =
-          case player do
-            %Player{current_room_id: nil} ->
-              {:ok, updated_player} = Game.spawn_player(player, player.spawn_room.id)
-              updated_player
-
-            _ ->
-              player
+          if is_nil(player.current_room_id) do
+            {:ok, updated_player} = Game.spawn_player(player.id, player.spawn_room.id)
+            updated_player
+          else
+            player
           end
 
-        room_id = player.current_room.id
-        Messaging.subscribe_to_room(room_id)
+        Messaging.subscribe_to_room(player.current_room_id)
+        Messaging.subscribe_to_player(player_id)
+        Messaging.subscribe_to_global()
 
-        broadcast_connection_event(room_id, "#{player.name} has arrived!")
+        msg = Message.new(:room_event, "#{player.name} has arrived!")
+        Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 
         state = %__MODULE__{
           player_id: player_id,
-          player: player,
-          current_room_id: room_id,
+          player_name: player.name,
           message_history: history,
           connected_views: MapSet.new(),
           last_activity_at: DateTime.utc_now(),
@@ -156,7 +154,10 @@ defmodule Realms.PlayerServer do
           shutdown_timer_ref: nil
         }
 
-        state = show_room_description(state)
+        Commands.parse_and_execute("look", %{
+          player_id: state.player_id,
+          player_server_pid: self()
+        })
 
         Logger.info("PlayerServer started for player #{player_id}")
 
@@ -167,18 +168,17 @@ defmodule Realms.PlayerServer do
   @impl true
   def handle_call({:register_view, view_pid}, _from, state) do
     Process.monitor(view_pid)
-
     state = cancel_all_timers(state)
+    player = Game.get_player!(state.player_id)
 
     state =
-      if state.player.connection_status == :away do
-        broadcast_connection_event(
-          state.current_room_id,
-          "#{state.player.name}'s eyes snap back into focus."
-        )
+      if player.connection_status == :away do
+        Game.set_player_status(state.player_id, :online)
 
-        {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :online})
-        %{state | player: updated_player}
+        msg = Message.new(:room_event, "#{state.player_name}'s eyes snap back into focus.")
+        Messaging.send_to_room(player.current_room_id, msg, exclude: self())
+
+        state
       else
         state
       end
@@ -189,16 +189,6 @@ defmodule Realms.PlayerServer do
     Logger.debug("Registered view #{inspect(view_pid)} for player #{state.player_id}")
 
     {:reply, :ok, state}
-  end
-
-  @impl true
-  def handle_call(:get_state, _from, state) do
-    result = %{
-      player: state.player,
-      current_room: state.player.current_room
-    }
-
-    {:reply, result, state}
   end
 
   @impl true
@@ -217,12 +207,28 @@ defmodule Realms.PlayerServer do
     command_echo = Message.new(:command_echo, "> #{input}")
     state = append_to_history_and_send_to_views(state, command_echo)
 
-    state =
-      input
-      |> parse_command()
-      |> execute_command(state)
+    context = %{
+      player_id: state.player_id,
+      player_server_pid: self()
+    }
 
-    {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
+    case Commands.parse_and_execute(input, context) do
+      :ok ->
+        {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
+
+      {:error, error_message} ->
+        msg = Message.new(:error, error_message)
+        Messaging.send_to_player(state.player_id, msg)
+        {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
+    end
+  end
+
+  @impl true
+  def handle_cast({:change_room_subscription, old_room_id, new_room_id}, state) do
+    Messaging.unsubscribe_from_room(old_room_id)
+    Messaging.subscribe_to_room(new_room_id)
+
+    {:noreply, state}
   end
 
   @impl true
@@ -241,16 +247,14 @@ defmodule Realms.PlayerServer do
   @impl true
   def handle_info(:away_timeout, state) do
     if Enum.empty?(state.connected_views) do
-      {:ok, updated_player} = Game.update_player(state.player, %{connection_status: :away})
+      player = Game.get_player!(state.player_id)
+      Game.set_player_status(state.player_id, :away)
 
-      broadcast_connection_event(
-        state.current_room_id,
-        "#{state.player.name}'s eyes glaze over."
-      )
+      msg = Message.new(:room_event, "#{state.player_name}'s eyes glaze over.")
+      Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 
       state =
         state
-        |> Map.put(:player, updated_player)
         |> Map.put(:away_timer_ref, nil)
         |> schedule_shutdown_timer()
 
@@ -280,104 +284,15 @@ defmodule Realms.PlayerServer do
     :ok
   end
 
-  # Command Parser
-
-  defp parse_command(""), do: :empty
-  defp parse_command("look"), do: :look
-  defp parse_command("exits"), do: :exits
-  defp parse_command("help"), do: :help
-  defp parse_command("say" <> message), do: {:say, String.trim(message)}
-
-  defp parse_command(command) do
-    direction = String.downcase(command)
-
-    if direction in ~w(north south east west northeast northwest southeast southwest up down in out) do
-      {:move, direction}
-    else
-      {:unknown, command}
-    end
-  end
-
-  # Command Executor
-
-  defp execute_command(:empty, state), do: state
-
-  defp execute_command(:look, state) do
-    show_room_description(state)
-  end
-
-  defp execute_command(:exits, state) do
-    message = Message.new(:info, format_exits(state.player.current_room))
-    append_to_history_and_send_to_views(state, message)
-  end
-
-  defp execute_command(:help, state) do
-    help_text = """
-    Available commands:
-    - Movement: north, south, east, west, northeast, northwest, southeast, southwest, up, down, in, out
-    - say <message>: Chat with players in the same room
-    - look: Show current room description
-    - exits: List available exits
-    - help: Show this message
-    """
-
-    message = Message.new(:info, help_text)
-    append_to_history_and_send_to_views(state, message)
-  end
-
-  defp execute_command({:say, message_text}, state) do
-    if String.trim(message_text) == "" do
-      message = Message.new(:error, "Say what?")
-      append_to_history_and_send_to_views(state, message)
-    else
-      broadcast_say(state.current_room_id, state.player.name, message_text)
-      state
-    end
-  end
-
-  defp execute_command({:move, direction}, state) do
-    old_room_id = state.current_room_id
-    player = state.player
-
-    case Game.move_player(player, direction) do
-      {:ok, new_room} ->
-        # 1. Broadcast departure to old room
-        broadcast_departure(old_room_id, player.name, direction)
-
-        # 2. Switch room subscriptions
-        Messaging.unsubscribe_from_room(old_room_id)
-        Messaging.subscribe_to_room(new_room.id)
-
-        # 3. Broadcast arrival to new room
-        reverse_dir = reverse_direction(direction)
-        broadcast_arrival(new_room.id, player.name, reverse_dir)
-
-        # 4. Update state and show new room
-        updated_player = Game.get_player!(player.id)
-
-        state = %{state | player: updated_player, current_room_id: new_room.id}
-        show_room_description(state)
-
-      {:error, :no_exit} ->
-        message = Message.new(:error, "You can't go that way.")
-        append_to_history_and_send_to_views(state, message)
-    end
-  end
-
-  defp execute_command({:unknown, command}, state) do
-    message = Message.new(:error, "I don't understand '#{command}'. Type 'help' for commands.")
-    append_to_history_and_send_to_views(state, message)
-  end
-
   # Helper Functions
 
   defp cleanup(state) do
-    broadcast_connection_event(
-      state.current_room_id,
-      "#{state.player.name} disappears in a puff of smoke."
-    )
+    player = Game.get_player!(state.player_id)
 
-    Game.despawn_player(state.player, "timeout")
+    msg = Message.new(:room_event, "#{state.player_name} disappears in a puff of smoke.")
+    Messaging.send_to_room(player.current_room_id, msg, exclude: self())
+
+    Game.despawn_player(state.player_id, "timeout")
   end
 
   defp disconnect_view(state, view_pid) do
@@ -388,57 +303,6 @@ defmodule Realms.PlayerServer do
       schedule_away_timer(state)
     else
       state
-    end
-  end
-
-  defp show_room_description(state) do
-    room = state.player.current_room
-    current_player_id = state.player_id
-
-    other_players =
-      room.id
-      |> Game.players_in_room()
-      |> Enum.reject(&(&1.id == current_player_id))
-
-    content = """
-    #{room.name}
-    #{room.description}
-
-    #{format_exits(room)}
-    """
-
-    state = append_to_history_and_send_to_views(state, Message.new(:room, content))
-
-    if other_players == [] do
-      state
-    else
-      player_names =
-        Enum.map_join(other_players, ", ", fn player ->
-          if player.connection_status == :away do
-            "#{player.name} (staring off into space)"
-          else
-            player.name
-          end
-        end)
-
-      message = Message.new(:players, "Also here: #{player_names}")
-      append_to_history_and_send_to_views(state, message)
-    end
-  end
-
-  defp format_exits(room) do
-    exits = Game.list_exits_from_room(room.id)
-
-    if exits == [] do
-      "Obvious exits: none"
-    else
-      exit_list =
-        exits
-        |> Enum.map(& &1.direction)
-        |> Enum.sort()
-        |> Enum.join(", ")
-
-      "Obvious exits: #{exit_list}"
     end
   end
 
@@ -502,42 +366,6 @@ defmodule Realms.PlayerServer do
     timer_ref = Process.send_after(self(), :shutdown_timeout, @shutdown_timeout)
     %{state | shutdown_timer_ref: timer_ref}
   end
-
-  # PubSub Helpers
-
-  defp broadcast_connection_event(room_id, text) do
-    message = Message.new(:room_event, text)
-    Messaging.send_to_room(room_id, message, exclude: self())
-  end
-
-  defp broadcast_say(room_id, player_name, text) do
-    message = Message.new(:say, "#{player_name} says: #{text}")
-    Messaging.send_to_room(room_id, message)
-  end
-
-  defp broadcast_departure(room_id, player_name, direction) do
-    message = Message.new(:room_event, "#{player_name} leaves to the #{direction}.")
-    Messaging.send_to_room(room_id, message, exclude: self())
-  end
-
-  defp broadcast_arrival(room_id, player_name, from_direction) do
-    message = Message.new(:room_event, "#{player_name} arrives from the #{from_direction}.")
-    Messaging.send_to_room(room_id, message, exclude: self())
-  end
-
-  defp reverse_direction("north"), do: "south"
-  defp reverse_direction("south"), do: "north"
-  defp reverse_direction("east"), do: "west"
-  defp reverse_direction("west"), do: "east"
-  defp reverse_direction("northeast"), do: "southwest"
-  defp reverse_direction("northwest"), do: "southeast"
-  defp reverse_direction("southeast"), do: "northwest"
-  defp reverse_direction("southwest"), do: "northeast"
-  defp reverse_direction("up"), do: "below"
-  defp reverse_direction("down"), do: "above"
-  defp reverse_direction("in"), do: "outside"
-  defp reverse_direction("out"), do: "inside"
-  defp reverse_direction(_), do: "somewhere"
 
   # DETS Helpers
 

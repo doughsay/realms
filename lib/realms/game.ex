@@ -258,10 +258,25 @@ defmodule Realms.Game do
   end
 
   @doc """
-  Spawns a player in a room.
-  Sets current_room_id, connection_status to :online, and clears despawn_reason.
+  Sets a player's connection status.
   Returns {:ok, player} or {:error, changeset}.
   """
+  def set_player_status(player_id, status) when status in [:online, :away, :offline] do
+    player = get_player!(player_id)
+    update_player(player, %{connection_status: status})
+  end
+
+  @doc """
+  Spawns a player in a room.
+  Sets current_room_id, connection_status to :online, and clears despawn_reason.
+  Accepts either a player_id or a Player struct.
+  Returns {:ok, player} or {:error, changeset}.
+  """
+  def spawn_player(player_id, room_id) when is_binary(player_id) do
+    player = get_player!(player_id)
+    spawn_player(player, room_id)
+  end
+
   def spawn_player(%Player{} = player, room_id) do
     update_player(player, %{
       current_room_id: room_id,
@@ -274,9 +289,17 @@ defmodule Realms.Game do
   Despawns a player with the given reason.
   Clears current_room_id, sets connection_status to :offline, records despawn_reason.
   Updates spawn_room_id to preserve last location if current_room_id is set.
+  Accepts either a player_id or a Player struct.
   Returns {:ok, player} or {:error, changeset}.
   """
-  def despawn_player(%Player{} = player, reason, opts \\ []) do
+  def despawn_player(player_or_id, reason, opts \\ [])
+
+  def despawn_player(player_id, reason, opts) when is_binary(player_id) do
+    player = get_player!(player_id)
+    despawn_player(player, reason, opts)
+  end
+
+  def despawn_player(%Player{} = player, reason, opts) do
     attrs = %{
       connection_status: :offline,
       despawn_reason: reason

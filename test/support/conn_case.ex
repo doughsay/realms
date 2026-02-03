@@ -89,11 +89,6 @@ defmodule RealmsWeb.ConnCase do
     result = register_and_log_in_user(context)
     player = Realms.GameFixtures.player_fixture(result.user)
 
-    # Pre-start the Player GenServer and grant sandbox access for LiveView tests
-    {:ok, player_server_pid} = Realms.PlayerServer.ensure_started(player.id)
-    allow_sandbox_access(player_server_pid)
-    Process.link(player_server_pid)
-
     result
     |> Map.put(:player, player)
     |> Map.put(:conn, select_player(result.conn, player))
@@ -116,11 +111,6 @@ defmodule RealmsWeb.ConnCase do
   def create_second_player(_context \\ %{}) do
     user2 = Realms.AccountsFixtures.user_fixture()
     player2 = Realms.GameFixtures.player_fixture(user2)
-
-    # Pre-start the Player GenServer and grant sandbox access for LiveView tests
-    {:ok, player_server_pid} = Realms.PlayerServer.ensure_started(player2.id)
-    allow_sandbox_access(player_server_pid)
-    Process.link(player_server_pid)
 
     conn2 =
       Phoenix.ConnTest.build_conn()
