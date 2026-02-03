@@ -29,7 +29,10 @@ defmodule Realms.Commands.Say do
     player = Game.get_player!(context.player_id)
 
     message = Message.new(:say, "#{player.name} says: #{message_text}")
-    Messaging.send_to_room(player.current_room_id, message)
+    Messaging.send_to_room(player.current_room_id, message, exclude: context.player_id)
+
+    message = Message.new(:say, "You say: #{message_text}")
+    Messaging.send_to_player(context.player_id, message)
 
     :ok
   end
