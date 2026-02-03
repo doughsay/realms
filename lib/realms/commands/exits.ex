@@ -5,9 +5,10 @@ defmodule Realms.Commands.Exits do
 
   @behaviour Realms.Commands.Command
 
+  import Realms.Messaging.Message
+
   alias Realms.Game
   alias Realms.Messaging
-  alias Realms.Messaging.MessageBuilder
 
   defstruct []
 
@@ -23,17 +24,10 @@ defmodule Realms.Commands.Exits do
 
     message =
       if exits == [] do
-        MessageBuilder.new()
-        |> MessageBuilder.text("Obvious exits: ", :gray)
-        |> MessageBuilder.text("none", :gray_light)
-        |> MessageBuilder.build()
+        ~m"{gray}Obvious exits: {/}{gray-light}none{/}"
       else
         exit_list = exits |> Enum.map(& &1.direction) |> Enum.sort() |> Enum.join(", ")
-
-        MessageBuilder.new()
-        |> MessageBuilder.text("Obvious exits: ", :gray)
-        |> MessageBuilder.text(exit_list, :bright_cyan)
-        |> MessageBuilder.build()
+        ~m"{gray}Obvious exits: {/}{bright-cyan}#{exit_list}{/}"
       end
 
     Messaging.send_to_player(context.player_id, message)

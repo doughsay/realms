@@ -5,10 +5,11 @@ defmodule Realms.Commands.Move do
 
   @behaviour Realms.Commands.Command
 
+  import Realms.Messaging.Message
+
   alias Realms.Commands.Look
   alias Realms.Game
   alias Realms.Messaging
-  alias Realms.Messaging.MessageBuilder
   alias Realms.PlayerServer
 
   defstruct [:direction]
@@ -32,22 +33,14 @@ defmodule Realms.Commands.Move do
         PlayerServer.change_room_subscription(context.player_id, old_room_id, new_room.id)
 
         # Departure message to old room
-        departure_msg =
-          MessageBuilder.new()
-          |> MessageBuilder.text(player.name, :bright_cyan)
-          |> MessageBuilder.text(" leaves to the #{direction}.", :cyan)
-          |> MessageBuilder.build()
+        departure_msg = ~m"{bright-cyan}#{player.name}{/}{cyan} leaves to the #{direction}.{/}"
 
         Messaging.send_to_room(old_room_id, departure_msg, exclude: context.player_id)
 
         # Arrival message to new room
         reverse_dir = reverse_direction(direction)
 
-        arrival_msg =
-          MessageBuilder.new()
-          |> MessageBuilder.text(player.name, :bright_cyan)
-          |> MessageBuilder.text(" arrives from the #{reverse_dir}.", :cyan)
-          |> MessageBuilder.build()
+        arrival_msg = ~m"{bright-cyan}#{player.name}{/}{cyan} arrives from the #{reverse_dir}.{/}"
 
         Messaging.send_to_room(new_room.id, arrival_msg, exclude: context.player_id)
 
@@ -56,7 +49,7 @@ defmodule Realms.Commands.Move do
         :ok
 
       {:error, :no_exit} ->
-        msg = MessageBuilder.simple("You can't go that way.", :red)
+        msg = ~m"{red}You can't go that way.{/}"
         Messaging.send_to_player(context.player_id, msg)
         :ok
     end

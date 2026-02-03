@@ -19,6 +19,7 @@ defmodule Realms.Messaging.MessageBuilder do
       |> MessageBuilder.build()
   """
 
+  alias Realms.Messaging.MarkupParser
   alias Realms.Messaging.Message
 
   defstruct segments: []
@@ -69,5 +70,48 @@ defmodule Realms.Messaging.MessageBuilder do
   @doc "Create a simple single-color message quickly"
   def simple(text, color \\ :white, modifiers \\ []) do
     new() |> text(text, color, modifiers) |> build()
+  end
+
+  @doc """
+  Parse and add markup text to the message.
+
+  On parse error, falls back to adding the text as plain white text
+  to prevent breaking messages in production.
+
+  ## Example
+
+      MessageBuilder.new()
+      |> MessageBuilder.markup("{b}Title:{/} {red}Important{/}")
+      |> MessageBuilder.build()
+  """
+  def markup(builder, markup_text) do
+    case MarkupParser.parse_segments(markup_text) do
+      {:ok, segments} ->
+        %{builder | segments: builder.segments ++ segments}
+
+      {:error, _reason} ->
+        # Fall back to plain text on error to prevent breaking messages
+        text(builder, markup_text, :white, [])
+    end
+  end
+
+  @doc """
+  Create a message directly from markup (convenience method).
+
+  On parse error, falls back to creating a plain white message.
+
+  ## Example
+
+      MessageBuilder.from_markup("{bright-yellow:b}Title{/}")
+  """
+  def from_markup(markup_text) do
+    case MarkupParser.parse(markup_text) do
+      {:ok, message} ->
+        message
+
+      {:error, _reason} ->
+        # Fall back to plain text on error
+        simple(markup_text, :white, [])
+    end
   end
 end

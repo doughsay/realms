@@ -5,8 +5,9 @@ defmodule Realms.Commands.Help do
 
   @behaviour Realms.Commands.Command
 
+  import Realms.Messaging.Message
+
   alias Realms.Messaging
-  alias Realms.Messaging.MessageBuilder
 
   defstruct []
 
@@ -16,28 +17,15 @@ defmodule Realms.Commands.Help do
 
   @impl true
   def execute(%__MODULE__{}, context) do
-    message =
-      MessageBuilder.new()
-      |> MessageBuilder.bold("Available Commands", :bright_yellow)
-      |> MessageBuilder.paragraph()
-      |> MessageBuilder.bold("Movement:", :cyan)
-      |> MessageBuilder.text(
-        " north, south, east, west, northeast, northwest, southeast, southwest, up, down, in, out",
-        :white
-      )
-      |> MessageBuilder.newline()
-      |> MessageBuilder.bold("say <message>:", :cyan)
-      |> MessageBuilder.text(" Chat with players in the same room", :white)
-      |> MessageBuilder.newline()
-      |> MessageBuilder.bold("look:", :cyan)
-      |> MessageBuilder.text(" Show current room description", :white)
-      |> MessageBuilder.newline()
-      |> MessageBuilder.bold("exits:", :cyan)
-      |> MessageBuilder.text(" List available exits", :white)
-      |> MessageBuilder.newline()
-      |> MessageBuilder.bold("help:", :cyan)
-      |> MessageBuilder.text(" Show this message", :white)
-      |> MessageBuilder.build()
+    message = ~m"""
+    {bright-yellow:b}Available Commands{/}
+
+    {cyan:b}Movement:{/} north, south, east, west, northeast, northwest, southeast, southeast, southwest, up, down, in, out
+    {cyan:b}say <message>:{/} Chat with players in the same room
+    {cyan:b}look:{/} Show current room description
+    {cyan:b}exits:{/} List available exits
+    {cyan:b}help:{/} Show this message
+    """
 
     Messaging.send_to_player(context.player_id, message)
 

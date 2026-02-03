@@ -7,11 +7,12 @@ defmodule Realms.PlayerServer do
   """
   use GenServer
 
+  import Realms.Messaging.Message
+
   alias Realms.Commands
   alias Realms.Game
   alias Realms.Messaging
   alias Realms.Messaging.Message
-  alias Realms.Messaging.MessageBuilder
 
   require Logger
 
@@ -154,7 +155,7 @@ defmodule Realms.PlayerServer do
         Messaging.subscribe_to_player(player_id)
         Messaging.subscribe_to_global()
 
-        msg = MessageBuilder.simple("#{player.name} has arrived!", :green)
+        msg = ~m"{green}#{player.name} has arrived!{/}"
         Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 
         state = %__MODULE__{
@@ -186,10 +187,7 @@ defmodule Realms.PlayerServer do
       if player.connection_status == :away do
         Game.set_player_status(state.player_id, :online)
 
-        msg =
-          MessageBuilder.simple("#{state.player_name}'s eyes snap back into focus.", :green, [
-            :italic
-          ])
+        msg = ~m"{green:i}#{state.player_name}'s eyes snap back into focus.{/}"
 
         Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 
@@ -219,7 +217,7 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_cast({:handle_input, input}, state) do
-    command_echo = MessageBuilder.simple("> #{input}", :gray_dark)
+    command_echo = ~m"{gray-dark}> #{input}{/}"
     state = append_to_history_and_send_to_views(state, command_echo)
 
     case Commands.parse_and_execute(input, %{player_id: state.player_id}) do
@@ -227,7 +225,7 @@ defmodule Realms.PlayerServer do
         {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
 
       {:error, error_message} ->
-        msg = MessageBuilder.simple(error_message, :red)
+        msg = ~m"{red}#{error_message}{/}"
         Messaging.send_to_player(state.player_id, msg)
         {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
     end
@@ -260,8 +258,7 @@ defmodule Realms.PlayerServer do
       player = Game.get_player!(state.player_id)
       Game.set_player_status(state.player_id, :away)
 
-      msg =
-        MessageBuilder.simple("#{state.player_name}'s eyes glaze over.", :gray_light, [:italic])
+      msg = ~m"{gray-light:i}#{state.player_name}'s eyes glaze over.{/}"
 
       Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 
@@ -301,8 +298,7 @@ defmodule Realms.PlayerServer do
   defp cleanup(state) do
     player = Game.get_player!(state.player_id)
 
-    msg =
-      MessageBuilder.simple("#{state.player_name} disappears in a puff of smoke.", :gray_light)
+    msg = ~m"{gray-light}#{state.player_name} disappears in a puff of smoke.{/}"
 
     Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 

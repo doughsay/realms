@@ -5,9 +5,11 @@ defmodule Realms.Commands.Look do
 
   @behaviour Realms.Commands.Command
 
+  import Realms.Messaging.Message
+
   alias Realms.Game
   alias Realms.Messaging
-  alias Realms.Messaging.MessageBuilder
+  alias Realms.Messaging.Message
 
   defstruct []
 
@@ -26,19 +28,17 @@ defmodule Realms.Commands.Look do
 
     exits = Game.list_exits_from_room(room.id)
 
-    message =
-      MessageBuilder.new()
-      |> MessageBuilder.bold(room.name, :bright_yellow)
-      |> MessageBuilder.newline()
-      |> MessageBuilder.text(room.description, :white)
-      |> MessageBuilder.paragraph()
-      |> add_exits(exits)
-      |> MessageBuilder.add_if(other_players != [], fn builder ->
-        builder
-        |> MessageBuilder.paragraph()
-        |> add_players(other_players)
-      end)
-      |> MessageBuilder.build()
+    room_msg = ~m"""
+    {bright-yellow:b}#{room.name}{/}
+    {white}#{room.description}{/}
+
+    """
+
+    exits_msg = get_exits_message(exits)
+    players_msg = get_players_message(other_players)
+
+    all_segments = room_msg.segments ++ exits_msg.segments ++ players_msg.segments
+    message = Message.new(all_segments)
 
     Messaging.send_to_player(player.id, message)
     :ok
@@ -52,31 +52,39 @@ defmodule Realms.Commands.Look do
 
   # Private helpers
 
-  defp add_exits(builder, []) do
-    builder
-    |> MessageBuilder.text("Obvious exits: ", :gray)
-    |> MessageBuilder.text("none", :gray_light)
+  defp get_exits_message([]) do
+    ~m"{gray}Obvious exits: {/}{gray-light}none{/}"
   end
 
-  defp add_exits(builder, exits) do
+  defp get_exits_message(exits) do
     exit_list = exits |> Enum.map(& &1.direction) |> Enum.sort() |> Enum.join(", ")
-
-    builder
-    |> MessageBuilder.text("Obvious exits: ", :gray)
-    |> MessageBuilder.text(exit_list, :bright_cyan)
+    ~m"{gray}Obvious exits: {/}{bright-cyan}#{exit_list}{/}"
   end
 
-  defp add_players(builder, players) do
-    builder = MessageBuilder.text(builder, "Also here:", :gray)
+  defp get_players_message([]), do: ~m""
 
-    Enum.reduce(players, builder, fn player, builder ->
-      builder
-      |> MessageBuilder.newline()
-      |> MessageBuilder.text("  • ", :gray)
-      |> MessageBuilder.text(player.name, :bright_green)
-      |> MessageBuilder.add_if(player.connection_status == :away, fn b ->
-        MessageBuilder.italic(b, " (staring off into space)", :gray_light)
+  defp get_players_message(players) do
+    header = ~m"""
+
+
+    {gray}Also here:{/}
+    """
+
+    player_segments =
+      Enum.flat_map(players, fn player ->
+        suffix =
+          if player.connection_status == :away,
+            do: ~m" {gray-light:i}(staring off into space){/}",
+            else: ~m""
+
+        line = ~m"""
+
+        {gray}  • {/}{bright-green}#{player.name}{/}
+        """
+
+        line.segments ++ suffix.segments
       end)
-    end)
+
+    Message.new(header.segments ++ player_segments)
   end
 end
