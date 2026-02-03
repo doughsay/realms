@@ -1,8 +1,9 @@
 defmodule RealmsWeb.GameLive do
   use RealmsWeb, :live_view
 
+  alias Realms.Game
+  alias Realms.Messaging.Message
   alias Realms.PlayerServer
-  alias RealmsWeb.Message
 
   def mount(_params, %{"player_id" => player_id}, socket) do
     case PlayerServer.ensure_started(player_id) do
@@ -11,13 +12,13 @@ defmodule RealmsWeb.GameLive do
           PlayerServer.register_view(player_id, self())
         end
 
-        state = PlayerServer.get_state(player_id)
+        player = Game.get_player!(player_id)
         history = PlayerServer.get_history(player_id)
 
         socket =
           socket
           |> assign(:player_id, player_id)
-          |> assign(:player, state.player)
+          |> assign(:player_name, player.name)
           |> stream(:messages, history, limit: 100)
           |> assign(:form, to_form(%{"command" => ""}, as: :command))
 
