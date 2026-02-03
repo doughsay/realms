@@ -32,11 +32,11 @@ defmodule Realms.Commands.Move do
         PlayerServer.change_room_subscription(context.player_id, old_room_id, new_room.id)
 
         departure_msg = Message.new(:room_event, "#{player.name} leaves to the #{direction}.")
-        Messaging.send_to_room(old_room_id, departure_msg, exclude: context.player_server_pid)
+        Messaging.send_to_room(old_room_id, departure_msg, exclude: context.player_id)
 
         reverse_dir = reverse_direction(direction)
         arrival_msg = Message.new(:room_event, "#{player.name} arrives from the #{reverse_dir}.")
-        Messaging.send_to_room(new_room.id, arrival_msg, exclude: context.player_server_pid)
+        Messaging.send_to_room(new_room.id, arrival_msg, exclude: context.player_id)
 
         Look.execute(%Look{}, context)
 

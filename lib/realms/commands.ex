@@ -11,10 +11,7 @@ defmodule Realms.Commands do
 
   @type command_result :: :ok | {:error, String.t()}
 
-  @type command_context :: %{
-          player_id: binary(),
-          player_server_pid: pid()
-        }
+  @type command_context :: %{player_id: binary()}
 
   # Commands in priority order - first match wins
   @commands [Look, Help, Exits, Say, Move]

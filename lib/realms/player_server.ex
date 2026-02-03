@@ -66,6 +66,17 @@ defmodule Realms.PlayerServer do
   end
 
   @doc """
+  Checks if a PlayerServer is running for the given player_id.
+  Returns {:ok, pid} if running, :error otherwise.
+  """
+  def whereis?(player_id) do
+    case Registry.lookup(Realms.PlayerRegistry, player_id) do
+      [{pid, _}] -> {:ok, pid}
+      [] -> :error
+    end
+  end
+
+  @doc """
   Registers a LiveView process with this player's GenServer.
   Sets up a process monitor to track the view.
   """
@@ -154,10 +165,7 @@ defmodule Realms.PlayerServer do
           shutdown_timer_ref: nil
         }
 
-        Commands.parse_and_execute("look", %{
-          player_id: state.player_id,
-          player_server_pid: self()
-        })
+        Commands.parse_and_execute("look", %{player_id: state.player_id})
 
         Logger.info("PlayerServer started for player #{player_id}")
 
@@ -207,12 +215,7 @@ defmodule Realms.PlayerServer do
     command_echo = Message.new(:command_echo, "> #{input}")
     state = append_to_history_and_send_to_views(state, command_echo)
 
-    context = %{
-      player_id: state.player_id,
-      player_server_pid: self()
-    }
-
-    case Commands.parse_and_execute(input, context) do
+    case Commands.parse_and_execute(input, %{player_id: state.player_id}) do
       :ok ->
         {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
 

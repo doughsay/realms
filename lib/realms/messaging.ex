@@ -8,6 +8,7 @@ defmodule Realms.Messaging do
   """
 
   alias Realms.Messaging.Message
+  alias Realms.PlayerServer
 
   @pubsub Realms.PubSub
 
@@ -31,7 +32,8 @@ defmodule Realms.Messaging do
 
   ## Options
 
-    * `:exclude` - PID of a process to exclude from the broadcast (typically self())
+    * `:exclude` - PID of a process to exclude from the broadcast (typically
+      self()), or a player_id to exclude that player's process (if connected).
 
   ## Examples
 
@@ -55,6 +57,12 @@ defmodule Realms.Messaging do
 
       pid when is_pid(pid) ->
         Phoenix.PubSub.broadcast_from(@pubsub, pid, topic, wrapped_message)
+
+      player_id when is_binary(player_id) ->
+        case PlayerServer.whereis?(player_id) do
+          {:ok, pid} -> Phoenix.PubSub.broadcast_from(@pubsub, pid, topic, wrapped_message)
+          :error -> Phoenix.PubSub.broadcast(@pubsub, topic, wrapped_message)
+        end
     end
   end
 
