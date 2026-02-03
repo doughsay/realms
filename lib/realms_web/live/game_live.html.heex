@@ -22,8 +22,8 @@
             </div>
             <div
               phx-no-format
-              class={"whitespace-pre-wrap font-mono #{message_class(message.type)}"}
-            >{message.content}</div>
+              class="whitespace-pre-wrap font-mono"
+            ><%= for segment <- message.segments do %><span class={segment_classes(segment)}>{segment.text}</span><% end %></div>
           </div>
         </div>
       </div>

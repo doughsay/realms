@@ -7,7 +7,7 @@ defmodule Realms.Commands.Say do
 
   alias Realms.Game
   alias Realms.Messaging
-  alias Realms.Messaging.Message
+  alias Realms.Messaging.MessageBuilder
 
   defstruct [:message]
 
@@ -20,7 +20,7 @@ defmodule Realms.Commands.Say do
 
   @impl true
   def execute(%__MODULE__{message: ""}, context) do
-    msg = Message.new(:error, "Say what?")
+    msg = MessageBuilder.simple("Say what?", :red, [:bold])
     Messaging.send_to_player(context.player_id, msg)
     :ok
   end
@@ -28,10 +28,23 @@ defmodule Realms.Commands.Say do
   def execute(%__MODULE__{message: message_text}, context) do
     player = Game.get_player!(context.player_id)
 
-    message = Message.new(:say, "#{player.name} says: #{message_text}")
+    # Message to others in the room
+    message =
+      MessageBuilder.new()
+      |> MessageBuilder.text(player.name, :bright_cyan)
+      |> MessageBuilder.text(" says: ", :gray)
+      |> MessageBuilder.text(message_text, :white)
+      |> MessageBuilder.build()
+
     Messaging.send_to_room(player.current_room_id, message, exclude: context.player_id)
 
-    message = Message.new(:say, "You say: #{message_text}")
+    # Message to the speaker
+    message =
+      MessageBuilder.new()
+      |> MessageBuilder.text("You say: ", :gray)
+      |> MessageBuilder.text(message_text, :white)
+      |> MessageBuilder.build()
+
     Messaging.send_to_player(context.player_id, message)
 
     :ok

@@ -7,7 +7,7 @@ defmodule Realms.Commands.Look do
 
   alias Realms.Game
   alias Realms.Messaging
-  alias Realms.Messaging.Message
+  alias Realms.Messaging.MessageBuilder
 
   defstruct []
 
@@ -24,20 +24,23 @@ defmodule Realms.Commands.Look do
       Game.players_in_room(room.id)
       |> Enum.reject(&(&1.id == context.player_id))
 
-    content = """
-    #{room.name}
-    #{room.description}
+    exits = Game.list_exits_from_room(room.id)
 
-    #{format_exits(room)}
-    """
+    message =
+      MessageBuilder.new()
+      |> MessageBuilder.bold(room.name, :bright_yellow)
+      |> MessageBuilder.newline()
+      |> MessageBuilder.text(room.description, :white)
+      |> MessageBuilder.paragraph()
+      |> add_exits(exits)
+      |> MessageBuilder.add_if(other_players != [], fn builder ->
+        builder
+        |> MessageBuilder.paragraph()
+        |> add_players(other_players)
+      end)
+      |> MessageBuilder.build()
 
-    Messaging.send_to_player(player.id, Message.new(:room, content))
-
-    if other_players != [] do
-      player_list = format_player_list(other_players)
-      Messaging.send_to_player(player.id, Message.new(:players, "Also here: #{player_list}"))
-    end
-
+    Messaging.send_to_player(player.id, message)
     :ok
   end
 
@@ -49,24 +52,31 @@ defmodule Realms.Commands.Look do
 
   # Private helpers
 
-  defp format_exits(room) do
-    exits = Game.list_exits_from_room(room.id)
-
-    if exits == [] do
-      "Obvious exits: none"
-    else
-      exit_list = exits |> Enum.map(& &1.direction) |> Enum.sort() |> Enum.join(", ")
-      "Obvious exits: #{exit_list}"
-    end
+  defp add_exits(builder, []) do
+    builder
+    |> MessageBuilder.text("Obvious exits: ", :gray)
+    |> MessageBuilder.text("none", :gray_light)
   end
 
-  defp format_player_list(players) do
-    Enum.map_join(players, ", ", fn player ->
-      if player.connection_status == :away do
-        "#{player.name} (staring off into space)"
-      else
-        player.name
-      end
+  defp add_exits(builder, exits) do
+    exit_list = exits |> Enum.map(& &1.direction) |> Enum.sort() |> Enum.join(", ")
+
+    builder
+    |> MessageBuilder.text("Obvious exits: ", :gray)
+    |> MessageBuilder.text(exit_list, :bright_cyan)
+  end
+
+  defp add_players(builder, players) do
+    builder = MessageBuilder.text(builder, "Also here:", :gray)
+
+    Enum.reduce(players, builder, fn player, builder ->
+      builder
+      |> MessageBuilder.newline()
+      |> MessageBuilder.text("  • ", :gray)
+      |> MessageBuilder.text(player.name, :bright_green)
+      |> MessageBuilder.add_if(player.connection_status == :away, fn b ->
+        MessageBuilder.italic(b, " (staring off into space)", :gray_light)
+      end)
     end)
   end
 end

@@ -6,7 +6,7 @@ defmodule Realms.Commands.Help do
   @behaviour Realms.Commands.Command
 
   alias Realms.Messaging
-  alias Realms.Messaging.Message
+  alias Realms.Messaging.MessageBuilder
 
   defstruct []
 
@@ -16,16 +16,29 @@ defmodule Realms.Commands.Help do
 
   @impl true
   def execute(%__MODULE__{}, context) do
-    help_text = """
-    Available commands:
-    - Movement: north, south, east, west, northeast, northwest, southeast, southwest, up, down, in, out
-    - say <message>: Chat with players in the same room
-    - look: Show current room description
-    - exits: List available exits
-    - help: Show this message
-    """
+    message =
+      MessageBuilder.new()
+      |> MessageBuilder.bold("Available Commands", :bright_yellow)
+      |> MessageBuilder.paragraph()
+      |> MessageBuilder.bold("Movement:", :cyan)
+      |> MessageBuilder.text(
+        " north, south, east, west, northeast, northwest, southeast, southwest, up, down, in, out",
+        :white
+      )
+      |> MessageBuilder.newline()
+      |> MessageBuilder.bold("say <message>:", :cyan)
+      |> MessageBuilder.text(" Chat with players in the same room", :white)
+      |> MessageBuilder.newline()
+      |> MessageBuilder.bold("look:", :cyan)
+      |> MessageBuilder.text(" Show current room description", :white)
+      |> MessageBuilder.newline()
+      |> MessageBuilder.bold("exits:", :cyan)
+      |> MessageBuilder.text(" List available exits", :white)
+      |> MessageBuilder.newline()
+      |> MessageBuilder.bold("help:", :cyan)
+      |> MessageBuilder.text(" Show this message", :white)
+      |> MessageBuilder.build()
 
-    message = Message.new(:info, help_text)
     Messaging.send_to_player(context.player_id, message)
 
     :ok

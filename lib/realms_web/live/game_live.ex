@@ -56,12 +56,55 @@ defmodule RealmsWeb.GameLive do
 
   # Helper Functions
 
-  defp message_class(:room), do: "text-primary"
-  defp message_class(:say), do: "text-base-content"
-  defp message_class(:room_event), do: "text-info"
-  defp message_class(:players), do: "text-accent"
-  defp message_class(:error), do: "text-error"
-  defp message_class(:info), do: "text-info"
-  defp message_class(:command_echo), do: "text-base-content/40"
-  defp message_class(_), do: "text-base-content"
+  # Build CSS classes for a segment (color + modifiers)
+  defp segment_classes(segment) do
+    color_class = color_to_class(segment.color || :white)
+    modifier_classes = Enum.map(segment.modifiers, &modifier_to_class/1)
+
+    [color_class | modifier_classes]
+    |> Enum.join(" ")
+  end
+
+  # Map color atoms to Tailwind classes
+  defp color_to_class(:black), do: "text-mud-black"
+  defp color_to_class(:gray_dark), do: "text-mud-gray-dark"
+  defp color_to_class(:gray), do: "text-mud-gray"
+  defp color_to_class(:gray_light), do: "text-mud-gray-light"
+  defp color_to_class(:white), do: "text-mud-white"
+
+  defp color_to_class(:red), do: "text-mud-red"
+  defp color_to_class(:green), do: "text-mud-green"
+  defp color_to_class(:yellow), do: "text-mud-yellow"
+  defp color_to_class(:blue), do: "text-mud-blue"
+  defp color_to_class(:magenta), do: "text-mud-magenta"
+  defp color_to_class(:cyan), do: "text-mud-cyan"
+  defp color_to_class(:orange), do: "text-mud-orange"
+  defp color_to_class(:purple), do: "text-mud-purple"
+
+  defp color_to_class(:bright_red), do: "text-mud-bright-red"
+  defp color_to_class(:bright_green), do: "text-mud-bright-green"
+  defp color_to_class(:bright_yellow), do: "text-mud-bright-yellow"
+  defp color_to_class(:bright_blue), do: "text-mud-bright-blue"
+  defp color_to_class(:bright_magenta), do: "text-mud-bright-magenta"
+  defp color_to_class(:bright_cyan), do: "text-mud-bright-cyan"
+  defp color_to_class(:bright_orange), do: "text-mud-bright-orange"
+  defp color_to_class(:bright_purple), do: "text-mud-bright-purple"
+
+  defp color_to_class(:teal), do: "text-mud-teal"
+  defp color_to_class(:pink), do: "text-mud-pink"
+  defp color_to_class(:lime), do: "text-mud-lime"
+  defp color_to_class(:amber), do: "text-mud-amber"
+  defp color_to_class(:indigo), do: "text-mud-indigo"
+  defp color_to_class(:violet), do: "text-mud-violet"
+  defp color_to_class(:rose), do: "text-mud-rose"
+  defp color_to_class(:emerald), do: "text-mud-emerald"
+  defp color_to_class(:sky), do: "text-mud-sky"
+  defp color_to_class(:slate), do: "text-mud-slate"
+  defp color_to_class(:brown), do: "text-mud-brown"
+
+  defp color_to_class(_), do: "text-mud-white"
+
+  defp modifier_to_class(:bold), do: "font-bold"
+  defp modifier_to_class(:italic), do: "italic"
+  defp modifier_to_class(_), do: ""
 end

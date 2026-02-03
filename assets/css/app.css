@@ -55,7 +55,6 @@
   --noise: 0;
 }
 
-
 /* Add variants based on LiveView classes */
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
@@ -65,6 +64,51 @@
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 /* Make LiveView wrapper divs transparent for layout */
-[data-phx-session], [data-phx-teleported-src] { display: contents }
+[data-phx-session],
+[data-phx-teleported-src] {
+  display: contents;
+}
 
 /* This file is for your main application CSS */
+
+@theme {
+  /* MUD Color Palette - Grayscale */
+  --color-mud-black: oklch(15% 0 0);
+  --color-mud-gray-dark: oklch(40% 0.01 260);
+  --color-mud-gray: oklch(60% 0.01 260);
+  --color-mud-gray-light: oklch(80% 0.01 260);
+  --color-mud-white: oklch(98% 0 0);
+
+  /* Base Colors */
+  --color-mud-red: oklch(55% 0.22 20);
+  --color-mud-green: oklch(60% 0.18 140);
+  --color-mud-yellow: oklch(70% 0.16 90);
+  --color-mud-blue: oklch(55% 0.2 240);
+  --color-mud-magenta: oklch(58% 0.24 320);
+  --color-mud-cyan: oklch(65% 0.18 200);
+  --color-mud-orange: oklch(65% 0.2 45);
+  --color-mud-purple: oklch(58% 0.23 280);
+
+  /* Bright Variants */
+  --color-mud-bright-red: oklch(65% 0.28 20);
+  --color-mud-bright-green: oklch(70% 0.24 140);
+  --color-mud-bright-yellow: oklch(80% 0.2 90);
+  --color-mud-bright-blue: oklch(65% 0.26 240);
+  --color-mud-bright-magenta: oklch(68% 0.3 320);
+  --color-mud-bright-cyan: oklch(75% 0.24 200);
+  --color-mud-bright-orange: oklch(75% 0.26 45);
+  --color-mud-bright-purple: oklch(68% 0.29 280);
+
+  /* Extended Colors */
+  --color-mud-teal: oklch(58% 0.18 180);
+  --color-mud-pink: oklch(70% 0.2 350);
+  --color-mud-lime: oklch(68% 0.22 130);
+  --color-mud-amber: oklch(68% 0.18 70);
+  --color-mud-indigo: oklch(50% 0.22 270);
+  --color-mud-violet: oklch(65% 0.24 300);
+  --color-mud-rose: oklch(62% 0.22 10);
+  --color-mud-emerald: oklch(62% 0.2 155);
+  --color-mud-sky: oklch(68% 0.18 230);
+  --color-mud-slate: oklch(50% 0.08 250);
+  --color-mud-brown: oklch(45% 0.12 60);
+}
