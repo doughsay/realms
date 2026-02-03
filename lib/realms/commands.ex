@@ -28,7 +28,7 @@ defmodule Realms.Commands do
         execute(command, context)
 
       :error ->
-        {:error, "I don't understand '#{input}'. Type 'help' for commands."}
+        {:error, "Arglebargle, glop-glyf!?!"}
     end
   end
 
