@@ -7,8 +7,6 @@ defmodule Realms.PlayerServer do
   """
   use GenServer
 
-  import Realms.Messaging.Markup
-
   alias Realms.Commands
   alias Realms.Game
   alias Realms.Messaging
@@ -325,26 +323,7 @@ defmodule Realms.PlayerServer do
   # Helper Functions
 
   defp send_welcome_banner(player_id) do
-    banner =
-      Message.new([
-        pre("""
-                                        <bright-yellow:b>Welcome to...</>
-
-                  <violet>@@@@@@@ </> <purple> @@@@@@@@</>  <indigo> @@@@@@ </> <blue> @@@     </>  <cyan>@@@@@@@@@@ </> <teal>  @@@@@@ </>
-                  <violet>@@@@@@@@</> <purple> @@@@@@@@</>  <indigo>@@@@@@@@</> <blue> @@@     </>  <cyan>@@@@@@@@@@@</> <teal> @@@@@@@ </>
-                  <violet>@@!  @@@</> <purple> @@!     </>  <indigo>@@!  @@@</> <blue> @@!     </>  <cyan>@@! @@! @@!</> <teal> !@@     </>
-                  <violet>!@!  @!@</> <purple> !@!     </>  <indigo>!@!  @!@</> <blue> !@!     </>  <cyan>!@! !@! !@!</> <teal> !@!     </>
-                  <violet>@!@!!@! </> <purple> @!!!:!  </>  <indigo>@!@!@!@!</> <blue> @!!     </>  <cyan>@!! !!@ @!@</> <teal> !!@@!!  </>
-                  <violet>!!@!@!  </> <purple> !!!!!:  </>  <indigo>!!!@!!!!</> <blue> !!!     </>  <cyan>!@!   ! !@!</> <teal>  !!@!!! </>
-                  <violet>!!: :!! </> <purple> !!:     </>  <indigo>!!:  !!!</> <blue> !!:     </>  <cyan>!!:     !!:</> <teal>      !:!</>
-                  <violet>:!:  !:!</> <purple> :!:     </>  <indigo>:!:  !:!</> <blue>  :!:    </>  <cyan>:!:     :!:</> <teal>     !:! </>
-                  <violet>::   :::</> <purple>  :: ::::</>  <indigo>::   :::</> <blue>  :: ::::</>  <cyan>:::     :: </> <teal> :::: :: </>
-                  <violet>:   : : </> <purple>: :: ::  </>  <indigo>:   : : </> <blue>: :: : : </>  <cyan>:      :   </> <teal>:: : :   </>
-
-                        <b>REALMS</>: <i>Real-time Elixir Actor Linked Mud Server</>
-        """)
-      ])
-
+    banner = Messaging.Banner.banner()
     Messaging.send_to_player(player_id, banner)
   end
 
