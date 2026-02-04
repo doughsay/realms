@@ -351,17 +351,27 @@ defmodule Realms.Game do
       {:error, :no_starting_room}
     else
       Repo.transact(fn ->
-        with {:ok, inventory} <- Repo.insert(%Inventory{}) do
-          attrs =
-            attrs
-            |> Map.put(:user_id, user_id)
-            |> Map.put(:spawn_room_id, town_square.id)
-            |> Map.put(:last_seen_at, DateTime.utc_now())
-            |> Map.put(:inventory_id, inventory.id)
+        with {:ok, inventory} <- Repo.insert(%Inventory{}),
+             attrs =
+               attrs
+               |> Map.put(:user_id, user_id)
+               |> Map.put(:spawn_room_id, town_square.id)
+               |> Map.put(:last_seen_at, DateTime.utc_now())
+               |> Map.put(:inventory_id, inventory.id),
+             {:ok, player} <-
+               %Player{}
+               |> Player.changeset(attrs)
+               |> Repo.insert(),
+             duck_name = "#{Map.get(attrs, :name) || "Player"}'s Lucky Rubber Duck",
+             {:ok, duck} <-
+               create_item(%{
+                 name: duck_name,
+                 description:
+                   "A small, yellow rubber duck. It squeaks when you squeeze it. It seems to bring you comfort."
+               }) do
+          move_item_to_inventory(duck, inventory.id)
 
-          %Player{}
-          |> Player.changeset(attrs)
-          |> Repo.insert()
+          {:ok, player}
         end
       end)
     end
