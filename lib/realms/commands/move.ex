@@ -8,7 +8,6 @@ defmodule Realms.Commands.Move do
   alias Realms.Commands.Look
   alias Realms.Game
   alias Realms.Messaging
-  alias Realms.Messaging.Message
   alias Realms.PlayerServer
 
   defstruct [:direction]
@@ -31,20 +30,28 @@ defmodule Realms.Commands.Move do
       {:ok, new_room} ->
         PlayerServer.change_room_subscription(context.player_id, old_room_id, new_room.id)
 
-        departure_msg = Message.new(:room_event, "#{player.name} leaves to the #{direction}.")
-        Messaging.send_to_room(old_room_id, departure_msg, exclude: context.player_id)
+        # Departure message to old room
+        Messaging.send_to_room(
+          old_room_id,
+          "<bright-cyan>#{player.name}</><cyan> goes #{direction}.</>",
+          exclude: context.player_id
+        )
 
+        # Arrival message to new room
         reverse_dir = reverse_direction(direction)
-        arrival_msg = Message.new(:room_event, "#{player.name} arrives from the #{reverse_dir}.")
-        Messaging.send_to_room(new_room.id, arrival_msg, exclude: context.player_id)
+
+        Messaging.send_to_room(
+          new_room.id,
+          "<bright-cyan>#{player.name}</><cyan> arrives from #{reverse_dir}.</>",
+          exclude: context.player_id
+        )
 
         Look.execute(%Look{}, context)
 
         :ok
 
       {:error, :no_exit} ->
-        msg = Message.new(:error, "You can't go that way.")
-        Messaging.send_to_player(context.player_id, msg)
+        Messaging.send_to_player(context.player_id, "<red>You can't go that way.</>")
         :ok
     end
   end
@@ -57,14 +64,14 @@ defmodule Realms.Commands.Move do
 
   # Private helpers
 
-  defp reverse_direction("north"), do: "south"
-  defp reverse_direction("south"), do: "north"
-  defp reverse_direction("east"), do: "west"
-  defp reverse_direction("west"), do: "east"
-  defp reverse_direction("northeast"), do: "southwest"
-  defp reverse_direction("northwest"), do: "southeast"
-  defp reverse_direction("southeast"), do: "northwest"
-  defp reverse_direction("southwest"), do: "northeast"
+  defp reverse_direction("north"), do: "the south"
+  defp reverse_direction("south"), do: "the north"
+  defp reverse_direction("east"), do: "the west"
+  defp reverse_direction("west"), do: "the east"
+  defp reverse_direction("northeast"), do: "the southwest"
+  defp reverse_direction("northwest"), do: "the southeast"
+  defp reverse_direction("southeast"), do: "the northwest"
+  defp reverse_direction("southwest"), do: "the northeast"
   defp reverse_direction("up"), do: "below"
   defp reverse_direction("down"), do: "above"
   defp reverse_direction("in"), do: "outside"

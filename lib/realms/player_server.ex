@@ -17,6 +17,8 @@ defmodule Realms.PlayerServer do
   @away_timeout to_timeout(second: 10)
   @shutdown_timeout to_timeout(second: 30)
   @max_messages 100
+  # Increment this version when the Message struct changes incompatibly
+  @message_schema_version 2
 
   def child_spec(player_id) do
     %{
@@ -107,6 +109,13 @@ defmodule Realms.PlayerServer do
   end
 
   @doc """
+  Clears message history for this player.
+  """
+  def clear_history(player_id) do
+    GenServer.cast(via_tuple(player_id), :clear_history)
+  end
+
+  @doc """
   Changes room subscriptions for this player.
   Called when the player moves to a new room.
   """
@@ -122,6 +131,8 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def init(player_id) do
+    Process.flag(:trap_exit, true)
+
     case Game.get_player(player_id) do
       nil ->
         {:stop, :player_not_found}
@@ -147,13 +158,6 @@ defmodule Realms.PlayerServer do
             player
           end
 
-        Messaging.subscribe_to_room(player.current_room_id)
-        Messaging.subscribe_to_player(player_id)
-        Messaging.subscribe_to_global()
-
-        msg = Message.new(:room_event, "#{player.name} has arrived!")
-        Messaging.send_to_room(player.current_room_id, msg, exclude: self())
-
         state = %__MODULE__{
           player_id: player_id,
           player_name: player.name,
@@ -165,6 +169,17 @@ defmodule Realms.PlayerServer do
           shutdown_timer_ref: nil
         }
 
+        Messaging.subscribe_to_room(player.current_room_id)
+        Messaging.subscribe_to_player(player_id)
+        Messaging.subscribe_to_global()
+
+        Messaging.send_to_room(
+          player.current_room_id,
+          "<green>#{player.name} has arrived!</>",
+          exclude: self()
+        )
+
+        send_welcome_banner(state.player_id)
         Commands.parse_and_execute("look", %{player_id: state.player_id})
 
         Logger.info("PlayerServer started for player #{player_id}")
@@ -183,8 +198,11 @@ defmodule Realms.PlayerServer do
       if player.connection_status == :away do
         Game.set_player_status(state.player_id, :online)
 
-        msg = Message.new(:room_event, "#{state.player_name}'s eyes snap back into focus.")
-        Messaging.send_to_room(player.current_room_id, msg, exclude: self())
+        Messaging.send_to_room(
+          player.current_room_id,
+          "<green:i>#{state.player_name}'s eyes snap back into focus.</>",
+          exclude: self()
+        )
 
         state
       else
@@ -212,7 +230,7 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_cast({:handle_input, input}, state) do
-    command_echo = Message.new(:command_echo, "> #{input}")
+    command_echo = Message.new([{:pre_wrap, [{:color, :gray_dark, ["> #{input}"]}]}])
     state = append_to_history_and_send_to_views(state, command_echo)
 
     case Commands.parse_and_execute(input, %{player_id: state.player_id}) do
@@ -220,10 +238,22 @@ defmodule Realms.PlayerServer do
         {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
 
       {:error, error_message} ->
-        msg = Message.new(:error, error_message)
-        Messaging.send_to_player(state.player_id, msg)
+        Messaging.send_to_player(state.player_id, "<red>#{error_message}</>")
         {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
     end
+  end
+
+  @impl true
+  def handle_cast(:clear_history, state) do
+    if state.dets_table do
+      clear_dets_history(state.dets_table)
+    end
+
+    Enum.each(state.connected_views, fn view_pid ->
+      send(view_pid, :clear_history)
+    end)
+
+    {:noreply, %{state | message_history: []}}
   end
 
   @impl true
@@ -253,8 +283,11 @@ defmodule Realms.PlayerServer do
       player = Game.get_player!(state.player_id)
       Game.set_player_status(state.player_id, :away)
 
-      msg = Message.new(:room_event, "#{state.player_name}'s eyes glaze over.")
-      Messaging.send_to_room(player.current_room_id, msg, exclude: self())
+      Messaging.send_to_room(
+        player.current_room_id,
+        "<gray-light:i>#{state.player_name}'s eyes glaze over.</>",
+        exclude: self()
+      )
 
       state =
         state
@@ -289,13 +322,26 @@ defmodule Realms.PlayerServer do
 
   # Helper Functions
 
+  defp send_welcome_banner(player_id) do
+    banner = Messaging.Banner.banner()
+    Messaging.send_to_player(player_id, banner)
+  end
+
   defp cleanup(state) do
     player = Game.get_player!(state.player_id)
 
-    msg = Message.new(:room_event, "#{state.player_name} disappears in a puff of smoke.")
-    Messaging.send_to_room(player.current_room_id, msg, exclude: self())
+    Messaging.send_to_room(
+      player.current_room_id,
+      "<gray-light>#{state.player_name} disappears in a puff of smoke.</>",
+      exclude: self()
+    )
 
     Game.despawn_player(state.player_id, "timeout")
+
+    if state.dets_table do
+      Logger.debug("Clearing message history for player #{state.player_id} due to timeout")
+      clear_dets_history(state.dets_table)
+    end
   end
 
   defp disconnect_view(state, view_pid) do
@@ -309,13 +355,23 @@ defmodule Realms.PlayerServer do
     end
   end
 
+  defp clear_dets_history(table) do
+    :dets.delete_all_objects(table)
+    :dets.insert(table, {:schema_version, @message_schema_version})
+    :dets.sync(table)
+  end
+
   defp append_message_to_history(state, message) do
     if message_exists?(state.message_history, message.id) do
       state
     else
       new_history = (state.message_history ++ [message]) |> Enum.take(-@max_messages)
 
-      :dets.insert(state.dets_table, {:messages, new_history})
+      :dets.insert(state.dets_table, [
+        {:schema_version, @message_schema_version},
+        {:messages, new_history}
+      ])
+
       :dets.sync(state.dets_table)
 
       %{state | message_history: new_history}
@@ -382,9 +438,24 @@ defmodule Realms.PlayerServer do
   end
 
   defp load_history_from_dets(table) do
-    case :dets.lookup(table, :messages) do
-      [{:messages, messages}] -> messages
-      [] -> []
+    stored_version =
+      case :dets.lookup(table, :schema_version) do
+        [{:schema_version, version}] -> version
+        [] -> nil
+      end
+
+    if stored_version == @message_schema_version do
+      case :dets.lookup(table, :messages) do
+        [{:messages, messages}] -> messages
+        [] -> []
+      end
+    else
+      Logger.info(
+        "Message schema version mismatch (stored: #{inspect(stored_version)}, current: #{@message_schema_version}). Clearing message history."
+      )
+
+      clear_dets_history(table)
+      []
     end
   end
 

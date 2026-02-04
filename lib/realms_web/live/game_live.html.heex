@@ -10,20 +10,21 @@
           <div
             :for={{dom_id, message} <- @streams.messages}
             id={dom_id}
-            class="py-1"
+            class="py-1 group lg:grid lg:grid-cols-[5rem_1fr] lg:gap-2 lg:items-baseline"
           >
             <div
               id={"#{dom_id}-timestamp"}
-              class="text-xs text-base-content/30"
+              class="text-xs text-base-content/30 font-mono mb-1 lg:mb-0 lg:text-right"
               phx-hook=".LocalTime"
               data-timestamp={DateTime.to_iso8601(message.timestamp)}
             >
               {Calendar.strftime(message.timestamp, "%H:%M:%S")}
             </div>
-            <div
-              phx-no-format
-              class={"whitespace-pre-wrap font-mono #{message_class(message.type)}"}
-            >{message.content}</div>
+            <div class="lg:col-start-2 min-w-0">
+              <div :for={{type, content} <- message.sections}>
+                <.section type={type} content={content} />
+              </div>
+            </div>
           </div>
         </div>
       </div>
