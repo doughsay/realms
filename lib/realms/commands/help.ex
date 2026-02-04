@@ -25,7 +25,7 @@ defmodule Realms.Commands.Help do
     - help: Show this message
     """
 
-    message = Message.new(:info, help_text)
+    message = Message.from_text(help_text, :cyan)
     Messaging.send_to_player(context.player_id, message)
 
     :ok

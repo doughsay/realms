@@ -151,7 +151,7 @@ defmodule Realms.PlayerServer do
         Messaging.subscribe_to_player(player_id)
         Messaging.subscribe_to_global()
 
-        msg = Message.new(:room_event, "#{player.name} has arrived!")
+        msg = Message.from_text("#{player.name} has arrived!", :cyan)
         Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 
         state = %__MODULE__{
@@ -183,7 +183,7 @@ defmodule Realms.PlayerServer do
       if player.connection_status == :away do
         Game.set_player_status(state.player_id, :online)
 
-        msg = Message.new(:room_event, "#{state.player_name}'s eyes snap back into focus.")
+        msg = Message.from_text("#{state.player_name}'s eyes snap back into focus.", :cyan)
         Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 
         state
@@ -212,7 +212,7 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_cast({:handle_input, input}, state) do
-    command_echo = Message.new(:command_echo, "> #{input}")
+    command_echo = Message.from_text("> #{input}", :gray)
     state = append_to_history_and_send_to_views(state, command_echo)
 
     case Commands.parse_and_execute(input, %{player_id: state.player_id}) do
@@ -220,7 +220,7 @@ defmodule Realms.PlayerServer do
         {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
 
       {:error, error_message} ->
-        msg = Message.new(:error, error_message)
+        msg = Message.from_text(error_message, :red)
         Messaging.send_to_player(state.player_id, msg)
         {:noreply, %{state | last_activity_at: DateTime.utc_now()}}
     end
@@ -253,7 +253,7 @@ defmodule Realms.PlayerServer do
       player = Game.get_player!(state.player_id)
       Game.set_player_status(state.player_id, :away)
 
-      msg = Message.new(:room_event, "#{state.player_name}'s eyes glaze over.")
+      msg = Message.from_text("#{state.player_name}'s eyes glaze over.", :cyan)
       Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 
       state =
@@ -292,7 +292,7 @@ defmodule Realms.PlayerServer do
   defp cleanup(state) do
     player = Game.get_player!(state.player_id)
 
-    msg = Message.new(:room_event, "#{state.player_name} disappears in a puff of smoke.")
+    msg = Message.from_text("#{state.player_name} disappears in a puff of smoke.", :cyan)
     Messaging.send_to_room(player.current_room_id, msg, exclude: self())
 
     Game.despawn_player(state.player_id, "timeout")

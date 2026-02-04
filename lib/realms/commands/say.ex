@@ -20,7 +20,7 @@ defmodule Realms.Commands.Say do
 
   @impl true
   def execute(%__MODULE__{message: ""}, context) do
-    msg = Message.new(:error, "Say what?")
+    msg = Message.from_text("Say what?", :red)
     Messaging.send_to_player(context.player_id, msg)
     :ok
   end
@@ -28,10 +28,10 @@ defmodule Realms.Commands.Say do
   def execute(%__MODULE__{message: message_text}, context) do
     player = Game.get_player!(context.player_id)
 
-    message = Message.new(:say, "#{player.name} says: #{message_text}")
+    message = Message.from_text("#{player.name} says: #{message_text}", :white)
     Messaging.send_to_room(player.current_room_id, message, exclude: context.player_id)
 
-    message = Message.new(:say, "You say: #{message_text}")
+    message = Message.from_text("You say: #{message_text}", :white)
     Messaging.send_to_player(context.player_id, message)
 
     :ok

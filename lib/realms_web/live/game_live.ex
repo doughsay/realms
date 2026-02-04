@@ -54,14 +54,78 @@ defmodule RealmsWeb.GameLive do
     {:noreply, stream_insert(socket, :messages, message)}
   end
 
-  # Helper Functions
+  # Helper Functions & Rendering Components
 
-  defp message_class(:room), do: "text-primary"
-  defp message_class(:say), do: "text-base-content"
-  defp message_class(:room_event), do: "text-info"
-  defp message_class(:players), do: "text-accent"
-  defp message_class(:error), do: "text-error"
-  defp message_class(:info), do: "text-info"
-  defp message_class(:command_echo), do: "text-base-content/40"
-  defp message_class(_), do: "text-base-content"
+  # Renders a section with appropriate whitespace handling.
+  attr :section, :any, required: true
+
+  defp render_section(assigns) do
+    {section_type, content} = assigns.section
+
+    case section_type do
+      :pre_wrap ->
+        assigns = assign(assigns, :content, content)
+
+        ~H"""
+        <div phx-no-format class="whitespace-pre-wrap font-mono">
+          <%= render_content_nodes(@content) %>
+        </div>
+        """
+
+      :pre ->
+        assigns = assign(assigns, :content, content)
+
+        ~H"""
+        <div phx-no-format class="whitespace-pre font-mono overflow-x-auto">
+          <%= render_content_nodes(@content) %>
+        </div>
+        """
+    end
+  end
+
+  # Entry point for rendering content nodes.
+  defp render_content_nodes(content) do
+    render_content_with_context(content, %{color: nil, bold: false, italic: false})
+  end
+
+  # Recursively renders content nodes with accumulated styling context.
+  defp render_content_with_context(text, context) when is_binary(text) do
+    classes = content_classes(context)
+    escaped = text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+    Phoenix.HTML.raw("<span class=\"#{classes}\">#{escaped}</span>")
+  end
+
+  defp render_content_with_context({:color, color, inner}, context) do
+    render_content_with_context(inner, %{context | color: color})
+  end
+
+  defp render_content_with_context({:bold, inner}, context) do
+    render_content_with_context(inner, %{context | bold: true})
+  end
+
+  defp render_content_with_context({:italic, inner}, context) do
+    render_content_with_context(inner, %{context | italic: true})
+  end
+
+  defp render_content_with_context(list, context) when is_list(list) do
+    list
+    |> Enum.map(&render_content_with_context(&1, context))
+    |> Phoenix.HTML.raw()
+  end
+
+  # Builds CSS class string from styling context.
+  defp content_classes(context) do
+    [
+      if(context.color, do: color_class(context.color), else: "text-mud-white"),
+      if(context.bold, do: "font-bold"),
+      if(context.italic, do: "italic")
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.join(" ")
+  end
+
+  # Maps color atom to CSS class name.
+  defp color_class(color) do
+    "text-mud-#{color |> Atom.to_string() |> String.replace("_", "-")}"
+  end
 end

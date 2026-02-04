@@ -31,11 +31,11 @@ defmodule Realms.Commands.Look do
     #{format_exits(room)}
     """
 
-    Messaging.send_to_player(player.id, Message.new(:room, content))
+    Messaging.send_to_player(player.id, Message.from_text(content, :purple))
 
     if other_players != [] do
       player_list = format_player_list(other_players)
-      Messaging.send_to_player(player.id, Message.new(:players, "Also here: #{player_list}"))
+      Messaging.send_to_player(player.id, Message.from_text("Also here: #{player_list}", :magenta))
     end
 
     :ok

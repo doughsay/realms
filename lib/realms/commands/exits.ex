@@ -21,7 +21,7 @@ defmodule Realms.Commands.Exits do
     room = player.current_room
 
     exit_text = format_exits(room)
-    message = Message.new(:info, exit_text)
+    message = Message.from_text(exit_text, :cyan)
     Messaging.send_to_player(context.player_id, message)
 
     :ok

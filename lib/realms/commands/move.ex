@@ -31,11 +31,11 @@ defmodule Realms.Commands.Move do
       {:ok, new_room} ->
         PlayerServer.change_room_subscription(context.player_id, old_room_id, new_room.id)
 
-        departure_msg = Message.new(:room_event, "#{player.name} leaves to the #{direction}.")
+        departure_msg = Message.from_text("#{player.name} leaves to the #{direction}.", :cyan)
         Messaging.send_to_room(old_room_id, departure_msg, exclude: context.player_id)
 
         reverse_dir = reverse_direction(direction)
-        arrival_msg = Message.new(:room_event, "#{player.name} arrives from the #{reverse_dir}.")
+        arrival_msg = Message.from_text("#{player.name} arrives from the #{reverse_dir}.", :cyan)
         Messaging.send_to_room(new_room.id, arrival_msg, exclude: context.player_id)
 
         Look.execute(%Look{}, context)
@@ -43,7 +43,7 @@ defmodule Realms.Commands.Move do
         :ok
 
       {:error, :no_exit} ->
-        msg = Message.new(:error, "You can't go that way.")
+        msg = Message.from_text("You can't go that way.", :red)
         Messaging.send_to_player(context.player_id, msg)
         :ok
     end

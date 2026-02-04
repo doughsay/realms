@@ -20,10 +20,9 @@
             >
               {Calendar.strftime(message.timestamp, "%H:%M:%S")}
             </div>
-            <div
-              phx-no-format
-              class={"whitespace-pre-wrap font-mono #{message_class(message.type)}"}
-            >{message.content}</div>
+            <div :for={section <- message.sections}>
+              <.render_section section={section} />
+            </div>
           </div>
         </div>
       </div>
