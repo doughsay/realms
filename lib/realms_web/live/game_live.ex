@@ -144,7 +144,7 @@ defmodule RealmsWeb.GameLive do
   end
 
   defp section_classes(:pre) do
-    ["whitespace-pre", "overflow-x-auto"]
+    ["whitespace-pre", "overflow-x-auto", "overflow-y-hidden", "leading-none"]
   end
 
   defp content_classes(context) do
