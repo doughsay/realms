@@ -56,76 +56,148 @@ defmodule RealmsWeb.GameLive do
 
   # Helper Functions & Rendering Components
 
-  # Renders a section with appropriate whitespace handling.
-  attr :section, :any, required: true
+  attr :type, :atom, values: [:pre_wrap, :pre], required: true
+  attr :content, :any, required: true
 
-  defp render_section(assigns) do
-    {section_type, content} = assigns.section
-
-    case section_type do
-      :pre_wrap ->
-        assigns = assign(assigns, :content, content)
-
-        ~H"""
-        <div phx-no-format class="whitespace-pre-wrap font-mono">
-          <%= render_content_nodes(@content) %>
-        </div>
-        """
-
-      :pre ->
-        assigns = assign(assigns, :content, content)
-
-        ~H"""
-        <div phx-no-format class="whitespace-pre font-mono overflow-x-auto">
-          <%= render_content_nodes(@content) %>
-        </div>
-        """
-    end
+  defp section(assigns) do
+    ~H"""
+    <div
+      phx-no-format
+      class={["font-mono" | section_classes(@type)]}
+    ><.content_node
+      :for={item <- List.wrap(@content)}
+      node={item}
+      context={%{color: nil, bold: false, italic: false}}
+    /></div>
+    """
   end
 
-  # Entry point for rendering content nodes.
-  defp render_content_nodes(content) do
-    render_content_with_context(content, %{color: nil, bold: false, italic: false})
+  # Recursively renders a content node with styling context.
+  attr :node, :any, required: true
+  attr :context, :map, required: true
+
+  defp content_node(%{node: text} = assigns) when is_binary(text) do
+    ~H"""
+    <span class={content_classes(@context)}>{@node}</span>
+    """
   end
 
-  # Recursively renders content nodes with accumulated styling context.
-  defp render_content_with_context(text, context) when is_binary(text) do
-    classes = content_classes(context)
-    escaped = text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
-    Phoenix.HTML.raw("<span class=\"#{classes}\">#{escaped}</span>")
+  defp content_node(%{node: {:color, color, inner}} = assigns) do
+    assigns =
+      assigns
+      |> assign(:inner, inner)
+      |> assign(:context, %{assigns.context | color: color})
+
+    ~H"""
+    <.content_node
+      :for={item <- List.wrap(@inner)}
+      node={item}
+      context={@context}
+    />
+    """
   end
 
-  defp render_content_with_context({:color, color, inner}, context) do
-    render_content_with_context(inner, %{context | color: color})
+  defp content_node(%{node: {:bold, inner}} = assigns) do
+    assigns =
+      assigns
+      |> assign(:inner, inner)
+      |> assign(:context, %{assigns.context | bold: true})
+
+    ~H"""
+    <.content_node
+      :for={item <- List.wrap(@inner)}
+      node={item}
+      context={@context}
+    />
+    """
   end
 
-  defp render_content_with_context({:bold, inner}, context) do
-    render_content_with_context(inner, %{context | bold: true})
+  defp content_node(%{node: {:italic, inner}} = assigns) do
+    assigns =
+      assigns
+      |> assign(:inner, inner)
+      |> assign(:context, %{assigns.context | italic: true})
+
+    ~H"""
+    <.content_node
+      :for={item <- List.wrap(@inner)}
+      node={item}
+      context={@context}
+    />
+    """
   end
 
-  defp render_content_with_context({:italic, inner}, context) do
-    render_content_with_context(inner, %{context | italic: true})
+  defp content_node(%{node: list} = assigns) when is_list(list) do
+    assigns = assign(assigns, :items, list)
+
+    ~H"""
+    <.content_node
+      :for={item <- @items}
+      node={item}
+      context={@context}
+    />
+    """
   end
 
-  defp render_content_with_context(list, context) when is_list(list) do
-    list
-    |> Enum.map(&render_content_with_context(&1, context))
-    |> Phoenix.HTML.raw()
+  defp section_classes(:pre_wrap) do
+    ["whitespace-pre-wrap"]
   end
 
-  # Builds CSS class string from styling context.
+  defp section_classes(:pre) do
+    ["whitespace-pre", "overflow-x-auto"]
+  end
+
   defp content_classes(context) do
-    [
-      if(context.color, do: color_class(context.color), else: "text-mud-white"),
-      if(context.bold, do: "font-bold"),
-      if(context.italic, do: "italic")
-    ]
-    |> Enum.filter(& &1)
-    |> Enum.join(" ")
+    for {:ok, class} <- [
+          color_class(context.color),
+          bold_class(context.bold),
+          italic_class(context.italic)
+        ],
+        do: class
   end
 
-  # Maps color atom to CSS class name.
-  defp color_class(color) do
-    "text-mud-#{color |> Atom.to_string() |> String.replace("_", "-")}"
-  end
+  defp italic_class(false), do: :error
+  defp italic_class(true), do: {:ok, "italic"}
+
+  defp bold_class(false), do: :error
+  defp bold_class(true), do: {:ok, "font-bold"}
+
+  # default to white
+  defp color_class(nil), do: {:ok, "text-mud-white"}
+  # grayscale
+  defp color_class(:black), do: {:ok, "text-mud-black"}
+  defp color_class(:gray_dark), do: {:ok, "text-mud-gray-dark"}
+  defp color_class(:gray), do: {:ok, "text-mud-gray"}
+  defp color_class(:gray_light), do: {:ok, "text-mud-gray-light"}
+  defp color_class(:white), do: {:ok, "text-mud-white"}
+  # base colors
+  defp color_class(:red), do: {:ok, "text-mud-red"}
+  defp color_class(:green), do: {:ok, "text-mud-green"}
+  defp color_class(:yellow), do: {:ok, "text-mud-yellow"}
+  defp color_class(:blue), do: {:ok, "text-mud-blue"}
+  defp color_class(:magenta), do: {:ok, "text-mud-magenta"}
+  defp color_class(:cyan), do: {:ok, "text-mud-cyan"}
+  defp color_class(:orange), do: {:ok, "text-mud-orange"}
+  defp color_class(:purple), do: {:ok, "text-mud-purple"}
+  # bright colors
+  defp color_class(:bright_red), do: {:ok, "text-mud-bright-red"}
+  defp color_class(:bright_green), do: {:ok, "text-mud-bright-green"}
+  defp color_class(:bright_yellow), do: {:ok, "text-mud-bright-yellow"}
+  defp color_class(:bright_blue), do: {:ok, "text-mud-bright-blue"}
+  defp color_class(:bright_magenta), do: {:ok, "text-mud-bright-magenta"}
+  defp color_class(:bright_cyan), do: {:ok, "text-mud-bright-cyan"}
+  defp color_class(:bright_orange), do: {:ok, "text-mud-bright-orange"}
+  defp color_class(:bright_purple), do: {:ok, "text-mud-bright-purple"}
+  # extended colors
+  defp color_class(:teal), do: {:ok, "text-mud-teal"}
+  defp color_class(:pink), do: {:ok, "text-mud-pink"}
+  defp color_class(:lime), do: {:ok, "text-mud-lime"}
+  defp color_class(:amber), do: {:ok, "text-mud-amber"}
+  defp color_class(:indigo), do: {:ok, "text-mud-indigo"}
+  defp color_class(:violet), do: {:ok, "text-mud-violet"}
+  defp color_class(:rose), do: {:ok, "text-mud-rose"}
+  defp color_class(:emerald), do: {:ok, "text-mud-emerald"}
+  defp color_class(:sky), do: {:ok, "text-mud-sky"}
+  defp color_class(:slate), do: {:ok, "text-mud-slate"}
+  defp color_class(:brown), do: {:ok, "text-mud-brown"}
 end

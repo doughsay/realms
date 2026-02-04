@@ -35,7 +35,11 @@ defmodule Realms.Commands.Look do
 
     if other_players != [] do
       player_list = format_player_list(other_players)
-      Messaging.send_to_player(player.id, Message.from_text("Also here: #{player_list}", :magenta))
+
+      Messaging.send_to_player(
+        player.id,
+        Message.from_text("Also here: #{player_list}", :magenta)
+      )
     end
 
     :ok

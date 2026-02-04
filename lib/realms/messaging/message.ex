@@ -109,8 +109,7 @@ defmodule Realms.Messaging.Message do
   @doc """
   Validates a section structure.
   """
-  def validate_section({section_type, content})
-      when section_type in [:pre_wrap, :pre] do
+  def validate_section({section_type, content}) when section_type in [:pre_wrap, :pre] do
     validate_content(content)
   end
 

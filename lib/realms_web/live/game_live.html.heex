@@ -20,8 +20,8 @@
             >
               {Calendar.strftime(message.timestamp, "%H:%M:%S")}
             </div>
-            <div :for={section <- message.sections}>
-              <.render_section section={section} />
+            <div :for={{type, content} <- message.sections}>
+              <.section type={type} content={content} />
             </div>
           </div>
         </div>
