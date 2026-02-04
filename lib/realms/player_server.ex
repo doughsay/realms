@@ -111,6 +111,13 @@ defmodule Realms.PlayerServer do
   end
 
   @doc """
+  Clears message history for this player.
+  """
+  def clear_history(player_id) do
+    GenServer.cast(via_tuple(player_id), :clear_history)
+  end
+
+  @doc """
   Changes room subscriptions for this player.
   Called when the player moves to a new room.
   """
@@ -239,6 +246,19 @@ defmodule Realms.PlayerServer do
   end
 
   @impl true
+  def handle_cast(:clear_history, state) do
+    if state.dets_table do
+      clear_dets_history(state.dets_table)
+    end
+
+    Enum.each(state.connected_views, fn view_pid ->
+      send(view_pid, :clear_history)
+    end)
+
+    {:noreply, %{state | message_history: []}}
+  end
+
+  @impl true
   def handle_cast({:change_room_subscription, old_room_id, new_room_id}, state) do
     Messaging.unsubscribe_from_room(old_room_id)
     Messaging.subscribe_to_room(new_room_id)
@@ -341,8 +361,7 @@ defmodule Realms.PlayerServer do
 
     if state.dets_table do
       Logger.debug("Clearing message history for player #{state.player_id} due to timeout")
-      :dets.delete_all_objects(state.dets_table)
-      :dets.sync(state.dets_table)
+      clear_dets_history(state.dets_table)
     end
   end
 
@@ -355,6 +374,12 @@ defmodule Realms.PlayerServer do
     else
       state
     end
+  end
+
+  defp clear_dets_history(table) do
+    :dets.delete_all_objects(table)
+    :dets.insert(table, {:schema_version, @message_schema_version})
+    :dets.sync(table)
   end
 
   defp append_message_to_history(state, message) do
@@ -450,9 +475,7 @@ defmodule Realms.PlayerServer do
         "Message schema version mismatch (stored: #{inspect(stored_version)}, current: #{@message_schema_version}). Clearing message history."
       )
 
-      :dets.delete_all_objects(table)
-      :dets.insert(table, {:schema_version, @message_schema_version})
-      :dets.sync(table)
+      clear_dets_history(table)
       []
     end
   end

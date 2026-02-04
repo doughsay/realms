@@ -67,7 +67,7 @@ defmodule Realms.Commands.Look do
             ""
           end
 
-        "\n<gray>  • </><bright-green>#{player.name}</>#{suffix}"
+        "\n<gray>• </><bright-green>#{player.name}</>#{suffix}"
       end)
 
     "\n<gray>Also here:</>" <> player_lines <> "\n"

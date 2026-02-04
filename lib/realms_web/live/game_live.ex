@@ -63,6 +63,10 @@ defmodule RealmsWeb.GameLive do
     {:noreply, stream_insert(socket, :messages, message)}
   end
 
+  def handle_info(:clear_history, socket) do
+    {:noreply, stream(socket, :messages, [], reset: true)}
+  end
+
   # Helper Functions & Rendering Components
 
   attr :type, :atom, values: [:pre_wrap, :pre], required: true
