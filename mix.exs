@@ -66,6 +66,7 @@ defmodule Realms.MixProject do
       {:jason, "~> 1.2"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:liveness, "~> 1.0.0", only: :test},
+      {:nimble_parsec, "~> 1.0"},
       {:phoenix_ecto, "~> 4.5"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_dashboard, "~> 0.8.3"},

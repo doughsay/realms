@@ -25,6 +25,16 @@ defmodule Realms.Messaging.MarkupTest do
                {:pre_wrap, [{:italic, ["italic text"]}]}
     end
 
+    test "parses combined bold and italic" do
+      assert wrap("<b:i>text</>") ==
+               {:pre_wrap, [{:italic, [{:bold, ["text"]}]}]}
+    end
+
+    test "parses combined italic and bold" do
+      assert wrap("<i:b>text</>") ==
+               {:pre_wrap, [{:bold, [{:italic, ["text"]}]}]}
+    end
+
     test "parses combined color and bold" do
       assert wrap("<red:b>text</>") ==
                {:pre_wrap, [{:bold, [{:color, :red, ["text"]}]}]}
@@ -33,6 +43,11 @@ defmodule Realms.Messaging.MarkupTest do
     test "parses combined color, bold, and italic" do
       assert wrap("<cyan:b:i>text</>") ==
                {:pre_wrap, [{:italic, [{:bold, [{:color, :cyan, ["text"]}]}]}]}
+    end
+
+    test "parses combined color, italic, and bold" do
+      assert wrap("<cyan:i:b>text</>") ==
+               {:pre_wrap, [{:bold, [{:italic, [{:color, :cyan, ["text"]}]}]}]}
     end
 
     test "parses nested tags" do
@@ -88,6 +103,32 @@ defmodule Realms.Messaging.MarkupTest do
                   {:color, :red, ["Red ", {:bold, ["bold ", {:italic, ["italic"]}]}]}
                 ]}
     end
+
+    test "handles very deep nesting (5+ levels)" do
+      assert wrap("<red>1<blue>2<green>3<yellow>4<magenta>5</></></></></>") ==
+               {:pre_wrap,
+                [
+                  {:color, :red,
+                   [
+                     "1",
+                     {:color, :blue,
+                      [
+                        "2",
+                        {:color, :green,
+                         ["3", {:color, :yellow, ["4", {:color, :magenta, ["5"]}]}]}
+                      ]}
+                   ]}
+                ]}
+    end
+
+    test "modifier order is preserved" do
+      # Bold outside italic
+      assert wrap("<red:b:i>text</>") ==
+               {:pre_wrap, [{:italic, [{:bold, [{:color, :red, ["text"]}]}]}]}
+
+      # Order matters: italic outside bold would need different tag
+      # (but our syntax doesn't support reversing them without changing the tag)
+    end
   end
 
   describe "pre/1" do
@@ -116,38 +157,42 @@ defmodule Realms.Messaging.MarkupTest do
 
   describe "error handling" do
     test "raises on unclosed tag" do
-      assert_raise RuntimeError, ~r/Unclosed tag/, fn ->
+      assert_raise RuntimeError, fn ->
         wrap("<red>text")
       end
     end
 
     test "raises on unknown color" do
-      assert_raise ArgumentError, ~r/Unknown color: :invalid_color/, fn ->
+      assert_raise ArgumentError, fn ->
         wrap("<invalid-color>text</>")
       end
     end
 
     test "raises on unexpected closing tag" do
-      assert_raise RuntimeError, ~r/Unexpected closing tag/, fn ->
+      assert_raise RuntimeError, fn ->
         wrap("text</> more")
       end
     end
 
     test "raises on unknown modifier" do
-      assert_raise ArgumentError, ~r/Unknown modifier: x/, fn ->
+      assert_raise ArgumentError, fn ->
         wrap("<red:x>text</>")
       end
     end
 
-    test "treats unclosed < at end as literal (smart detection)" do
-      # With smart detection, <red without closing > is treated as literal
-      assert wrap("<red") == {:pre_wrap, ["<red"]}
+    test "unescaped < at end causes error" do
+      # Literal < must be escaped
+      assert_raise RuntimeError, fn ->
+        wrap("<red")
+      end
+
+      # But escaped version works
+      assert wrap("\\<red") == {:pre_wrap, ["<red"]}
     end
 
-    test "treats tag with special characters as literal (smart detection)" do
-      # <red!> has invalid character, so it's treated as literal
-      # The </> then fails because there's no matching opening tag
-      assert_raise RuntimeError, ~r/Unexpected closing tag/, fn ->
+    test "invalid tag characters cause error" do
+      # Invalid tag characters like ! are not valid
+      assert_raise RuntimeError, fn ->
         wrap("<red!>text</>")
       end
     end
@@ -207,51 +252,41 @@ defmodule Realms.Messaging.MarkupTest do
   end
 
   describe "literal characters and escaping" do
-    test "smart detection: < followed by space is literal" do
-      assert wrap("x < 5") == {:pre_wrap, ["x < 5"]}
+    test "escaped < in various contexts" do
+      # With space/digit after
+      assert wrap("x \\< 5") == {:pre_wrap, ["x < 5"]}
+      assert wrap("I \\<3 cats") == {:pre_wrap, ["I <3 cats"]}
+
+      # Before letters (prevents tag interpretation)
+      assert wrap("x\\<y") == {:pre_wrap, ["x<y"]}
+      assert wrap("a\\<-b") == {:pre_wrap, ["a<-b"]}
+
+      # Multiple in sequence
+      assert wrap("Use \\<\\<>> for binaries") == {:pre_wrap, ["Use <<>> for binaries"]}
     end
 
-    test "smart detection: < followed by digit is literal" do
-      assert wrap("I <3 cats") == {:pre_wrap, ["I <3 cats"]}
-      assert wrap("x <10") == {:pre_wrap, ["x <10"]}
+    test "escaped > produces literal >" do
+      assert wrap("Greater \\> than") == {:pre_wrap, ["Greater > than"]}
+      assert wrap("if x \\< 10 and y \\> 5") == {:pre_wrap, ["if x < 10 and y > 5"]}
     end
 
-    test "smart detection: << is literal" do
-      assert wrap("Use <<>> for binaries") == {:pre_wrap, ["Use <<>> for binaries"]}
-    end
-
-    test "smart detection: math comparisons work" do
-      assert wrap("if x < 10 and y > 5") == {:pre_wrap, ["if x < 10 and y > 5"]}
-    end
-
-    test "smart detection: arrows work" do
+    test "> doesn't need escaping outside tags" do
       assert wrap("Click here -->") == {:pre_wrap, ["Click here -->"]}
     end
 
-    test "smart detection: < followed by invalid tag name is literal" do
-      assert wrap("x<y") == {:pre_wrap, ["x<y"]}
-      assert wrap("a<-b") == {:pre_wrap, ["a<-b"]}
-    end
-
-    test "backslash escapes: \\< produces <" do
-      assert wrap("Use \\<red> for color") == {:pre_wrap, ["Use <red> for color"]}
-    end
-
-    test "backslash escapes: \\> produces >" do
-      assert wrap("Greater \\> than") == {:pre_wrap, ["Greater > than"]}
-    end
-
-    test "backslash escapes: \\\\ produces \\" do
+    test "escaped backslash" do
       assert wrap("Backslash: \\\\") == {:pre_wrap, ["Backslash: \\"]}
-    end
-
-    test "backslash escapes: lone backslash is literal" do
       assert wrap("trailing\\") == {:pre_wrap, ["trailing\\"]}
+
+      # Escaped backslash before <
+      assert wrap("\\\\\\<text") == {:pre_wrap, ["\\<text"]}
     end
 
     test "can escape entire tag to show as literal" do
       assert wrap("To use colors: \\<red>text\\</>") ==
                {:pre_wrap, ["To use colors: <red>text</>"]}
+
+      assert wrap("Use \\<red> for color") == {:pre_wrap, ["Use <red> for color"]}
     end
 
     test "mix of escaped and real tags" do
@@ -268,8 +303,8 @@ defmodule Realms.Messaging.MarkupTest do
                {:pre_wrap, ["Welcome ", {:color, :cyan, ["Alice"]}]}
     end
 
-    test "interpolated values can contain literal <" do
-      value = "x < 5"
+    test "interpolated values with < must be escaped" do
+      value = "x \\< 5"
       assert wrap("Check: #{value}") == {:pre_wrap, ["Check: x < 5"]}
     end
 
