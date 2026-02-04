@@ -14,15 +14,30 @@ defmodule Realms.GameFixtures do
   end
 
   @doc """
+  Get or create the Town Square room.
+  """
+  def town_square_fixture do
+    case Game.get_room_by_name("Town Square") do
+      nil ->
+        {:ok, room} =
+          Game.create_room(%{
+            name: "Town Square",
+            description: "A bustling town square."
+          })
+
+        room
+
+      room ->
+        room
+    end
+  end
+
+  @doc """
   Generate a player for a given user.
   Requires a Town Square room to exist.
   """
   def player_fixture(user, attrs \\ %{}) do
-    town_square = Game.get_room_by_name("Town Square")
-
-    if is_nil(town_square) do
-      raise "Town Square room must exist to create player fixtures"
-    end
+    town_square = town_square_fixture()
 
     attrs =
       attrs
