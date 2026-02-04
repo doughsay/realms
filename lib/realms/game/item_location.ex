@@ -1,5 +1,6 @@
 defmodule Realms.Game.ItemLocation do
   use Ecto.Schema
+
   import Ecto.Changeset
 
   @primary_key false

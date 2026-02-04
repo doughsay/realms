@@ -13,6 +13,7 @@ defmodule Realms.Commands do
     Inventory,
     Get,
     Drop,
+    Examine,
     Help,
     Exits,
     Say,
@@ -33,7 +34,22 @@ defmodule Realms.Commands do
   @type command_context :: %{player_id: binary()}
 
   # Commands in priority order - first match wins
-  @commands [Look, Inventory, Get, Drop, Help, Exits, Say, Move, Crash, Hang, Clear, Banner, Tell]
+  @commands [
+    Look,
+    Inventory,
+    Get,
+    Drop,
+    Examine,
+    Help,
+    Exits,
+    Say,
+    Move,
+    Crash,
+    Hang,
+    Clear,
+    Banner,
+    Tell
+  ]
 
   @doc """
   Parses and executes a player input string in the given context.

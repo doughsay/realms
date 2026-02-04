@@ -1,5 +1,6 @@
 defmodule Realms.Game.ItemContent do
   use Ecto.Schema
+
   import Ecto.Changeset
 
   @primary_key false

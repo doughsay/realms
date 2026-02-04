@@ -26,6 +26,7 @@ defmodule Realms.Commands.Help do
       <cyan:b>inventory:</> List items you are carrying (alias: inv, i)
       <cyan:b>get \\<item>:</> Pick up an item
       <cyan:b>drop \\<item>:</> Drop an item
+      <cyan:b>examine \\<item>:</> Examine an item (alias: x)
       <cyan:b>exits:</> List available exits
       <cyan:b>banner:</> Show game banner
       <cyan:b>clear:</> Clear your message history
