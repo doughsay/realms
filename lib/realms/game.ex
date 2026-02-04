@@ -5,16 +5,124 @@ defmodule Realms.Game do
 
   import Ecto.Query
 
-  alias Realms.Game.{Room, Exit, Player}
+  alias Realms.Game.{Room, Exit, Player, Item, Inventory, ItemLocation, ItemContent}
   alias Realms.Repo
 
-  def online_players_by_name_prefix(text) do
-    pattern = text <> "%"
+  # Item functions
 
-    Player
-    |> where([u], ilike(u.name, ^pattern))
-    |> where([u], u.connection_status == :online)
+  @doc """
+  Lists all items.
+  """
+  def list_items do
+    Repo.all(Item)
+  end
+
+  @doc """
+  Gets a single item by ID. Raises if not found.
+  """
+  def get_item!(id), do: Repo.get!(Item, id)
+
+  @doc """
+  Creates an item.
+
+  Options:
+    * `:has_inventory` - boolean, if true creates an inventory for the item (e.g. for a bag).
+  """
+  def create_item(attrs, opts \\ []) do
+    Repo.transaction(fn ->
+      case %Item{} |> Item.changeset(attrs) |> Repo.insert() do
+        {:ok, item} ->
+          if Keyword.get(opts, :has_inventory, false) do
+            inventory = Repo.insert!(%Inventory{})
+
+            %ItemContent{}
+            |> ItemContent.changeset(%{item_id: item.id, inventory_id: inventory.id})
+            |> Repo.insert!()
+          end
+
+          item
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  @doc """
+  Moves an item to a specific inventory.
+
+  If the item is already somewhere else, it is moved.
+  """
+  def move_item_to_inventory(%Item{} = item, inventory_id) do
+    %ItemLocation{}
+    |> ItemLocation.changeset(%{item_id: item.id, inventory_id: inventory_id})
+    |> Repo.insert(
+      on_conflict: :replace_all,
+      conflict_target: :item_id
+    )
+  end
+
+  @doc """
+  Moves an item to a room's inventory.
+  """
+  def move_item_to_room(%Item{} = item, %Room{} = room) do
+    move_item_to_inventory(item, room.inventory_id)
+  end
+
+  @doc """
+  Moves an item to a player's inventory.
+  """
+  def move_item_to_player(%Item{} = item, %Player{} = player) do
+    move_item_to_inventory(item, player.inventory_id)
+  end
+
+  @doc """
+  Moves an item inside another item (e.g., putting a sword in a bag).
+
+  Returns `{:ok, item_location}` or `{:error, :no_inventory}` if the container cannot hold items.
+  """
+  def move_item_to_item(%Item{} = item, %Item{} = container) do
+    case Repo.get_by(ItemContent, item_id: container.id) do
+      %ItemContent{inventory_id: inventory_id} ->
+        move_item_to_inventory(item, inventory_id)
+
+      nil ->
+        {:error, :no_inventory}
+    end
+  end
+
+  @doc """
+  Lists items in a specific inventory.
+  """
+  def list_items_in_inventory(inventory_id) do
+    Item
+    |> join(:inner, [i], l in ItemLocation, on: l.item_id == i.id)
+    |> where([i, l], l.inventory_id == ^inventory_id)
     |> Repo.all()
+  end
+
+  @doc """
+  Lists items currently in a room.
+  """
+  def list_items_in_room(%Room{} = room) do
+    list_items_in_inventory(room.inventory_id)
+  end
+
+  @doc """
+  Lists items currently carried by a player.
+  """
+  def list_items_in_player(%Player{} = player) do
+    list_items_in_inventory(player.inventory_id)
+  end
+
+  @doc """
+  Lists items contained inside another item.
+  """
+  def list_items_in_item(%Item{} = container) do
+    case Repo.get_by(ItemContent, item_id: container.id) do
+      nil -> []
+      %ItemContent{inventory_id: inventory_id} -> list_items_in_inventory(inventory_id)
+    end
   end
 
   # Room functions
@@ -263,6 +371,19 @@ defmodule Realms.Game do
   def players_in_room(room_id) do
     Player
     |> where([p], p.current_room_id == ^room_id)
+    |> Repo.all()
+  end
+
+  @doc """
+  Lists online players whose names start with the given text.
+  Case-insensitive.
+  """
+  def online_players_by_name_prefix(text) do
+    pattern = text <> "%"
+
+    Player
+    |> where([u], ilike(u.name, ^pattern))
+    |> where([u], u.connection_status == :online)
     |> Repo.all()
   end
 
