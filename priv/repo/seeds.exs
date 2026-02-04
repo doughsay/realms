@@ -73,6 +73,90 @@ for {id1, id2, dir1, dir2} <- links do
   {:ok, _} = Game.create_bidirectional_exit(room_ids[id1], room_ids[id2], dir1, dir2)
 end
 
+IO.puts("Creating items...")
+
+items = [
+  # Town Square
+  %{
+    name: "Rusty Dagger",
+    description: "An old dagger, pitted with rust but still sharp enough to cut.",
+    location: :town_square
+  },
+  # Tavern
+  %{
+    name: "Wooden Tankard",
+    description: "A heavy wooden tankard, stained with years of spilled ale.",
+    location: :tavern
+  },
+  # General Store
+  %{
+    name: "Rope",
+    description: "A coil of sturdy hemp rope, essential for any adventurer.",
+    location: :general_store
+  },
+  %{
+    name: "Torch",
+    description: "A wooden stick wrapped in oil-soaked rags.",
+    location: :general_store
+  },
+  # Old Well
+  %{
+    name: "Shiny Coin",
+    description: "A single gold coin, gleaming in the dirt.",
+    location: :old_well
+  },
+  # Hidden Chamber
+  %{
+    name: "Ancient Scroll",
+    description: "A crumbling scroll covered in indecipherable runes.",
+    location: :hidden_chamber
+  }
+]
+
+# Create regular items
+for item_data <- items do
+  location_id = room_ids[item_data.location]
+  {:ok, item} = Game.create_item(Map.take(item_data, [:name, :description]))
+
+  # Fetch the room struct to pass to move_item_to_room
+  room = Game.get_room!(location_id)
+  Game.move_item_to_room(item, room)
+
+  IO.puts("Created item: #{item.name} in #{room.name}")
+end
+
+# Create a container item (Backpack) in the Town Square
+{:ok, backpack} =
+  Game.create_item(
+    %{
+      name: "Leather Backpack",
+      description: "A worn leather backpack with plenty of pockets."
+    },
+    has_inventory: true
+  )
+
+town_square = Game.get_room!(room_ids[:town_square])
+Game.move_item_to_room(backpack, town_square)
+IO.puts("Created container: #{backpack.name} in #{town_square.name}")
+
+# Create items inside the Backpack
+backpack_contents = [
+  %{
+    name: "Apple",
+    description: "A red, juicy apple. Looks delicious."
+  },
+  %{
+    name: "Map",
+    description: "A crude map of the local area."
+  }
+]
+
+for content_data <- backpack_contents do
+  {:ok, item} = Game.create_item(content_data)
+  Game.move_item_to_item(item, backpack)
+  IO.puts("Created item: #{item.name} inside #{backpack.name}")
+end
+
 for {_, room} <- rooms do
   IO.puts("Created room: #{room.name}")
 end

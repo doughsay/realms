@@ -29,24 +29,26 @@ defmodule Realms.Game do
     * `:has_inventory` - boolean, if true creates an inventory for the item (e.g. for a bag).
   """
   def create_item(attrs, opts \\ []) do
-    Repo.transaction(fn ->
-      case %Item{} |> Item.changeset(attrs) |> Repo.insert() do
-        {:ok, item} ->
-          if Keyword.get(opts, :has_inventory, false) do
-            inventory = Repo.insert!(%Inventory{})
-
-            %ItemContent{}
-            |> ItemContent.changeset(%{item_id: item.id, inventory_id: inventory.id})
-            |> Repo.insert!()
-          end
-
-          item
-
-        {:error, changeset} ->
-          Repo.rollback(changeset)
+    Repo.transact(fn ->
+      with {:ok, item} <- %Item{} |> Item.changeset(attrs) |> Repo.insert(),
+           {:ok, _inventory_or_nil} <-
+             maybe_create_item_inventory(item, Keyword.get(opts, :has_inventory, false)) do
+        {:ok, item}
       end
     end)
   end
+
+  defp maybe_create_item_inventory(%Item{} = item, true) do
+    with {:ok, inventory} <- Repo.insert(%Inventory{}),
+         {:ok, _item_content} <-
+           %ItemContent{}
+           |> ItemContent.changeset(%{item_id: item.id, inventory_id: inventory.id})
+           |> Repo.insert() do
+      {:ok, inventory}
+    end
+  end
+
+  defp maybe_create_item_inventory(_item, false), do: {:ok, nil}
 
   @doc """
   Moves an item to a specific inventory.
@@ -161,9 +163,15 @@ defmodule Realms.Game do
   Creates a room.
   """
   def create_room(attrs) do
-    %Room{}
-    |> Room.changeset(attrs)
-    |> Repo.insert()
+    Repo.transact(fn ->
+      with {:ok, inventory} <- Repo.insert(%Inventory{}) do
+        attrs = Map.put(attrs, :inventory_id, inventory.id)
+
+        %Room{}
+        |> Room.changeset(attrs)
+        |> Repo.insert()
+      end
+    end)
   end
 
   @doc """
@@ -292,9 +300,15 @@ defmodule Realms.Game do
   Creates a player.
   """
   def create_player(attrs) do
-    %Player{}
-    |> Player.changeset(attrs)
-    |> Repo.insert()
+    Repo.transact(fn ->
+      with {:ok, inventory} <- Repo.insert(%Inventory{}) do
+        attrs = Map.put(attrs, :inventory_id, inventory.id)
+
+        %Player{}
+        |> Player.changeset(attrs)
+        |> Repo.insert()
+      end
+    end)
   end
 
   @doc """
@@ -336,15 +350,20 @@ defmodule Realms.Game do
     if is_nil(town_square) do
       {:error, :no_starting_room}
     else
-      attrs =
-        attrs
-        |> Map.put(:user_id, user_id)
-        |> Map.put(:spawn_room_id, town_square.id)
-        |> Map.put(:last_seen_at, DateTime.utc_now())
+      Repo.transact(fn ->
+        with {:ok, inventory} <- Repo.insert(%Inventory{}) do
+          attrs =
+            attrs
+            |> Map.put(:user_id, user_id)
+            |> Map.put(:spawn_room_id, town_square.id)
+            |> Map.put(:last_seen_at, DateTime.utc_now())
+            |> Map.put(:inventory_id, inventory.id)
 
-      %Player{}
-      |> Player.changeset(attrs)
-      |> Repo.insert()
+          %Player{}
+          |> Player.changeset(attrs)
+          |> Repo.insert()
+        end
+      end)
     end
   end
 
