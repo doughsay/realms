@@ -72,7 +72,7 @@ defmodule Realms.Commands do
 
             Messaging.send_to_player(
               context.player_id,
-              "<red:b>Command error:</> An error occurred while executing that command. Please try again or contact support if the issue persists."
+              "<red:b>Command error:</> An error occurred while executing that command."
             )
 
             :ok
