@@ -4,6 +4,7 @@ defmodule Realms.Commands.Get do
   """
   @behaviour Realms.Commands.Command
 
+  alias Realms.Commands.Utils
   alias Realms.Game
   alias Realms.Messaging
 
@@ -23,7 +24,7 @@ defmodule Realms.Commands.Get do
     room = player.current_room
     items = Game.list_items_in_room(room)
 
-    case find_item(items, name) do
+    case Utils.match_item(items, name) do
       nil ->
         Messaging.send_to_player(player.id, "<red>You don't see '#{name}' here.</>")
 
@@ -47,19 +48,8 @@ defmodule Realms.Commands.Get do
   end
 
   @impl true
-  def description, do: "Pick up an item"
+  def description, do: "Pick up an item from the room"
 
   @impl true
-  def examples, do: ["get sword", "get torch"]
-
-  defp find_item(items, name) do
-    search_term = String.downcase(name)
-
-    Enum.find(items, fn item ->
-      item.name
-      |> String.downcase()
-      |> String.split()
-      |> Enum.any?(fn word -> String.starts_with?(word, search_term) end)
-    end)
-  end
+  def examples, do: ["get sword"]
 end

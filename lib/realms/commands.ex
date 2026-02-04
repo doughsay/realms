@@ -11,8 +11,10 @@ defmodule Realms.Commands do
   alias Realms.Commands.{
     Look,
     Inventory,
+    GetFrom,
     Get,
     Drop,
+    Put,
     Examine,
     Help,
     Exits,
@@ -34,11 +36,14 @@ defmodule Realms.Commands do
   @type command_context :: %{player_id: binary()}
 
   # Commands in priority order - first match wins
+
   @commands [
     Look,
     Inventory,
+    GetFrom,
     Get,
     Drop,
+    Put,
     Examine,
     Help,
     Exits,

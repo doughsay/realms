@@ -4,6 +4,7 @@ defmodule Realms.Commands.Drop do
   """
   @behaviour Realms.Commands.Command
 
+  alias Realms.Commands.Utils
   alias Realms.Game
   alias Realms.Messaging
 
@@ -23,14 +24,14 @@ defmodule Realms.Commands.Drop do
     room = player.current_room
     items = Game.list_items_in_player(player)
 
-    case find_item(items, name) do
+    case Utils.match_item(items, name) do
       nil ->
         Messaging.send_to_player(player.id, "<red>You aren't carrying '#{name}'.</>")
 
       item ->
         case Game.move_item_to_room(item, room) do
           {:ok, _} ->
-            Messaging.send_to_player(player.id, "<green>You drop #{item.name}.</>")
+            Messaging.send_to_player(player.id, "<green>You drop the #{item.name}.</>")
 
             Messaging.send_to_room(
               room.id,
@@ -51,15 +52,4 @@ defmodule Realms.Commands.Drop do
 
   @impl true
   def examples, do: ["drop sword", "drop torch"]
-
-  defp find_item(items, name) do
-    search_term = String.downcase(name)
-
-    Enum.find(items, fn item ->
-      item.name
-      |> String.downcase()
-      |> String.split()
-      |> Enum.any?(fn word -> String.starts_with?(word, search_term) end)
-    end)
-  end
 end

@@ -4,6 +4,7 @@ defmodule Realms.Commands.Examine do
   """
   @behaviour Realms.Commands.Command
 
+  alias Realms.Commands.Utils
   alias Realms.Game
   alias Realms.Messaging
 
@@ -27,11 +28,10 @@ defmodule Realms.Commands.Examine do
     player = Game.get_player!(context.player_id)
     room = player.current_room
 
-    # Look in inventory first, then in the room
     inventory_items = Game.list_items_in_player(player)
     room_items = Game.list_items_in_room(room)
 
-    case find_item(inventory_items ++ room_items, name) do
+    case Utils.match_item(inventory_items ++ room_items, name) do
       nil ->
         Messaging.send_to_player(player.id, "<red>You don't see '#{name}' here.</>")
 
@@ -55,17 +55,6 @@ defmodule Realms.Commands.Examine do
 
   @impl true
   def examples, do: ["examine sword", "x bag"]
-
-  defp find_item(items, name) do
-    search_term = String.downcase(name)
-
-    Enum.find(items, fn item ->
-      item.name
-      |> String.downcase()
-      |> String.split()
-      |> Enum.any?(fn word -> String.starts_with?(word, search_term) end)
-    end)
-  end
 
   defp format_contents([]), do: ""
 
