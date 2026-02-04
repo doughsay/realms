@@ -17,6 +17,8 @@ defmodule Realms.PlayerServer do
   @away_timeout to_timeout(second: 10)
   @shutdown_timeout to_timeout(second: 30)
   @max_messages 100
+  # Increment this version when the Message struct changes incompatibly
+  @message_schema_version 2
 
   def child_spec(player_id) do
     %{
@@ -315,7 +317,11 @@ defmodule Realms.PlayerServer do
     else
       new_history = (state.message_history ++ [message]) |> Enum.take(-@max_messages)
 
-      :dets.insert(state.dets_table, {:messages, new_history})
+      :dets.insert(state.dets_table, [
+        {:schema_version, @message_schema_version},
+        {:messages, new_history}
+      ])
+
       :dets.sync(state.dets_table)
 
       %{state | message_history: new_history}
@@ -382,9 +388,26 @@ defmodule Realms.PlayerServer do
   end
 
   defp load_history_from_dets(table) do
-    case :dets.lookup(table, :messages) do
-      [{:messages, messages}] -> messages
-      [] -> []
+    stored_version =
+      case :dets.lookup(table, :schema_version) do
+        [{:schema_version, version}] -> version
+        [] -> nil
+      end
+
+    if stored_version == @message_schema_version do
+      case :dets.lookup(table, :messages) do
+        [{:messages, messages}] -> messages
+        [] -> []
+      end
+    else
+      Logger.info(
+        "Message schema version mismatch (stored: #{inspect(stored_version)}, current: #{@message_schema_version}). Clearing message history."
+      )
+
+      :dets.delete_all_objects(table)
+      :dets.insert(table, {:schema_version, @message_schema_version})
+      :dets.sync(table)
+      []
     end
   end
 
