@@ -23,6 +23,10 @@ defmodule Realms.Commands.Help do
       <cyan:b>say \\<message>:</> Chat with players in the same room
       <cyan:b>look:</> Show current room description
       <cyan:b>exits:</> List available exits
+      <cyan:b>banner:</> Show game banner
+      <cyan:b>clear:</> Clear your message history
+      <cyan:b>crash:</> Intentionally crash (for testing)
+      <cyan:b>hang:</> Intentionally hang forever (for testing)
       <cyan:b>help:</> Show this message
       """
     )
