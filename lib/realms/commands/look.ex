@@ -7,7 +7,6 @@ defmodule Realms.Commands.Look do
 
   alias Realms.Game
   alias Realms.Messaging
-  alias Realms.Messaging.Message
 
   defstruct []
 
@@ -24,23 +23,17 @@ defmodule Realms.Commands.Look do
       Game.players_in_room(room.id)
       |> Enum.reject(&(&1.id == context.player_id))
 
-    content = """
-    #{room.name}
-    #{room.description}
+    exits = Game.list_exits_from_room(room.id)
 
-    #{format_exits(room)}
-    """
+    Messaging.send_to_player(
+      player.id,
+      """
+      <bright-yellow:b>#{room.name}</>
+      <white>#{room.description}</>
 
-    Messaging.send_to_player(player.id, Message.from_text(content, :purple))
-
-    if other_players != [] do
-      player_list = format_player_list(other_players)
-
-      Messaging.send_to_player(
-        player.id,
-        Message.from_text("Also here: #{player_list}", :magenta)
-      )
-    end
+      #{format_exits_section(exits)}#{format_players_section(other_players)}
+      """
+    )
 
     :ok
   end
@@ -53,24 +46,30 @@ defmodule Realms.Commands.Look do
 
   # Private helpers
 
-  defp format_exits(room) do
-    exits = Game.list_exits_from_room(room.id)
-
-    if exits == [] do
-      "Obvious exits: none"
-    else
-      exit_list = exits |> Enum.map(& &1.direction) |> Enum.sort() |> Enum.join(", ")
-      "Obvious exits: #{exit_list}"
-    end
+  defp format_exits_section([]) do
+    "<gray>Obvious exits: </><gray-light>none</>\n"
   end
 
-  defp format_player_list(players) do
-    Enum.map_join(players, ", ", fn player ->
-      if player.connection_status == :away do
-        "#{player.name} (staring off into space)"
-      else
-        player.name
-      end
-    end)
+  defp format_exits_section(exits) do
+    exit_list = exits |> Enum.map(& &1.direction) |> Enum.sort() |> Enum.join(", ")
+    "<gray>Obvious exits: </><bright-cyan>#{exit_list}</>\n"
+  end
+
+  defp format_players_section([]), do: ""
+
+  defp format_players_section(players) do
+    player_lines =
+      Enum.map_join(players, "", fn player ->
+        suffix =
+          if player.connection_status == :away do
+            " <gray-light:i>(staring off into space)</>"
+          else
+            ""
+          end
+
+        "\n<gray>  • </><bright-green>#{player.name}</>#{suffix}"
+      end)
+
+    "\n<gray>Also here:</>" <> player_lines <> "\n"
   end
 end

@@ -5,7 +5,36 @@ defmodule Realms.Messaging do
   This module provides the public API for sending messages to players and rooms,
   and managing subscriptions. It encapsulates all PubSub logic and provides the
   foundation for game communication.
+
+  ## Message Input Formats
+
+  All messaging functions accept multiple input formats for convenience:
+
+  - **String**: Automatically parsed with `Markup.wrap/1`
+    ```elixir
+    send_to_player(player_id, "<blue>Hello world!</>")
+    ```
+
+  - **Single section**: A section tuple
+    ```elixir
+    send_to_player(player_id, wrap("<title>Title</>"))
+    ```
+
+  - **List of sections**: Multiple sections
+    ```elixir
+    send_to_player(player_id, [
+      wrap("<title>Title</>"),
+      pre("ASCII art")
+    ])
+    ```
+
+  - **Message struct**: Full message (backward compatibility)
+    ```elixir
+    send_to_player(player_id, Message.new([...]))
+    ```
   """
+
+  import Realms.Messaging.Markup
 
   alias Realms.Messaging.Message
   alias Realms.PlayerServer
@@ -17,18 +46,50 @@ defmodule Realms.Messaging do
   @doc """
   Send a message directly to a specific player.
 
+  Accepts a string (parsed with markup), a section tuple, a list of sections,
+  or a Message struct.
+
   ## Examples
 
-      iex> message = Message.new(:info, "You receive a whisper")
+      # Simple string with markup
+      iex> Messaging.send_to_player(player_id, "<blue>Hello!</>")
+      :ok
+
+      # Single section
+      iex> Messaging.send_to_player(player_id, wrap("<title>Title</>"))
+      :ok
+
+      # Multiple sections
+      iex> Messaging.send_to_player(player_id, [wrap("Text"), pre("Art")])
+      :ok
+
+      # Full message struct
+      iex> message = Message.new([wrap("Text")])
       iex> Messaging.send_to_player(player_id, message)
       :ok
   """
+  def send_to_player(player_id, content) when is_binary(content) do
+    send_to_player(player_id, Message.new([wrap(content)]))
+  end
+
+  def send_to_player(player_id, {section_type, _content} = section)
+      when section_type in [:pre_wrap, :pre] do
+    send_to_player(player_id, Message.new([section]))
+  end
+
+  def send_to_player(player_id, sections) when is_list(sections) do
+    send_to_player(player_id, Message.new(sections))
+  end
+
   def send_to_player(player_id, %Message{} = message) do
     Phoenix.PubSub.broadcast(@pubsub, player_topic(player_id), {:game_message, message})
   end
 
   @doc """
   Send a message to all players in a room.
+
+  Accepts a string (parsed with markup), a section tuple, a list of sections,
+  or a Message struct.
 
   ## Options
 
@@ -37,17 +98,43 @@ defmodule Realms.Messaging do
 
   ## Examples
 
-      # Broadcast to everyone in the room
-      iex> message = Message.new(:say, "Hello, world!")
-      iex> Messaging.send_to_room(room_id, message)
+      # Simple string
+      iex> Messaging.send_to_room(room_id, "<yellow>The door creaks open.</>")
       :ok
 
-      # Broadcast to everyone except the sender
-      iex> message = Message.new(:room_event, "Player arrived")
+      # With exclusion
+      iex> Messaging.send_to_room(room_id, "Player arrived", exclude: self())
+      :ok
+
+      # Multiple sections
+      iex> Messaging.send_to_room(room_id, [wrap("Text"), pre("Map")])
+      :ok
+
+      # Full message struct
+      iex> message = Message.new([wrap("Text")])
       iex> Messaging.send_to_room(room_id, message, exclude: self())
       :ok
   """
-  def send_to_room(room_id, %Message{} = message, opts \\ []) do
+  def send_to_room(room_id, content, opts \\ [])
+
+  def send_to_room(room_id, content, opts) when is_binary(content) do
+    send_to_room(room_id, Message.new([wrap(content)]), opts)
+  end
+
+  def send_to_room(room_id, {section_type, _content} = section, opts)
+      when section_type in [:pre_wrap, :pre] do
+    send_to_room(room_id, Message.new([section]), opts)
+  end
+
+  def send_to_room(room_id, sections, opts) when is_list(sections) do
+    if Keyword.keyword?(sections) do
+      raise ArgumentError, "Expected a Message, string, section, or list of sections"
+    else
+      send_to_room(room_id, Message.new(sections), opts)
+    end
+  end
+
+  def send_to_room(room_id, %Message{} = message, opts) do
     topic = room_topic(room_id)
     wrapped_message = {:game_message, message}
 
@@ -69,12 +156,37 @@ defmodule Realms.Messaging do
   @doc """
   Broadcast a message to all connected players globally.
 
+  Accepts a string (parsed with markup), a section tuple, a list of sections,
+  or a Message struct.
+
   ## Examples
 
-      iex> message = Message.new(:system, "Server maintenance in 5 minutes")
+      # Simple string
+      iex> Messaging.broadcast_global("<red:b>Server maintenance in 5 minutes</>")
+      :ok
+
+      # Multiple sections
+      iex> Messaging.broadcast_global([wrap("Title"), wrap("Details")])
+      :ok
+
+      # Full message struct
+      iex> message = Message.new([wrap("System message")])
       iex> Messaging.broadcast_global(message)
       :ok
   """
+  def broadcast_global(content) when is_binary(content) do
+    broadcast_global(Message.new([wrap(content)]))
+  end
+
+  def broadcast_global({section_type, _content} = section)
+      when section_type in [:pre_wrap, :pre] do
+    broadcast_global(Message.new([section]))
+  end
+
+  def broadcast_global(sections) when is_list(sections) do
+    broadcast_global(Message.new(sections))
+  end
+
   def broadcast_global(%Message{} = message) do
     Phoenix.PubSub.broadcast(@pubsub, global_topic(), {:game_message, message})
   end

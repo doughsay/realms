@@ -140,7 +140,7 @@ defmodule RealmsWeb.GameLive do
   end
 
   defp section_classes(:pre_wrap) do
-    ["whitespace-pre-wrap"]
+    ["whitespace-pre-wrap", "max-w-3xl"]
   end
 
   defp section_classes(:pre) do

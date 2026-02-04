@@ -7,7 +7,6 @@ defmodule Realms.Commands.Exits do
 
   alias Realms.Game
   alias Realms.Messaging
-  alias Realms.Messaging.Message
 
   defstruct []
 
@@ -19,9 +18,16 @@ defmodule Realms.Commands.Exits do
   def execute(%__MODULE__{}, context) do
     player = Game.get_player!(context.player_id)
     room = player.current_room
+    exits = Game.list_exits_from_room(room.id)
 
-    exit_text = format_exits(room)
-    message = Message.from_text(exit_text, :cyan)
+    message =
+      if exits == [] do
+        "<gray>Obvious exits: </><gray-light>none</>"
+      else
+        exit_list = exits |> Enum.map(& &1.direction) |> Enum.sort() |> Enum.join(", ")
+        "<gray>Obvious exits: </><bright-cyan>#{exit_list}</>"
+      end
+
     Messaging.send_to_player(context.player_id, message)
 
     :ok
@@ -32,17 +38,4 @@ defmodule Realms.Commands.Exits do
 
   @impl true
   def examples, do: ["exits"]
-
-  # Private helpers
-
-  defp format_exits(room) do
-    exits = Game.list_exits_from_room(room.id)
-
-    if exits == [] do
-      "Obvious exits: none"
-    else
-      exit_list = exits |> Enum.map(& &1.direction) |> Enum.sort() |> Enum.join(", ")
-      "Obvious exits: #{exit_list}"
-    end
-  end
 end

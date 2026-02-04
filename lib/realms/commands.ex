@@ -7,14 +7,17 @@ defmodule Realms.Commands do
   """
 
   alias Realms.Commands.Command
-  alias Realms.Commands.{Look, Help, Exits, Say, Move}
+  alias Realms.Commands.{Look, Help, Exits, Say, Move, Crash, Hang}
+  alias Realms.Messaging
+
+  require Logger
 
   @type command_result :: :ok | {:error, String.t()}
 
   @type command_context :: %{player_id: binary()}
 
   # Commands in priority order - first match wins
-  @commands [Look, Help, Exits, Say, Move]
+  @commands [Look, Help, Exits, Say, Move, Crash, Hang]
 
   @doc """
   Parses and executes a player input string in the given context.
@@ -50,17 +53,53 @@ defmodule Realms.Commands do
   @doc """
   Executes a command struct in the given context.
 
-  Launches the command in a supervised Task.
+  Launches the command in a supervised Task with error handling and timeout.
   Returns immediately with :ok.
   """
   @spec execute(Command.t(), command_context()) :: :ok
   def execute(%module{} = command, context) do
-    Task.Supervisor.start_child(
-      Realms.CommandSupervisor,
-      fn ->
-        module.execute(command, context)
+    {:ok, pid} =
+      Task.Supervisor.start_child(Realms.CommandSupervisor, fn ->
+        try do
+          module.execute(command, context)
+        rescue
+          error ->
+            Logger.error("""
+            Command execution failed: #{inspect(module)}
+            Error: #{Exception.format(:error, error, __STACKTRACE__)}
+            Context: #{inspect(context)}
+            """)
+
+            Messaging.send_to_player(
+              context.player_id,
+              "<red:b>Command error:</> An error occurred while executing that command. Please try again or contact support if the issue persists."
+            )
+
+            :ok
+        end
+      end)
+
+    spawn(fn ->
+      ref = Process.monitor(pid)
+
+      receive do
+        {:DOWN, ^ref, :process, ^pid, _reason} ->
+          :ok
+      after
+        5_000 ->
+          Process.exit(pid, :kill)
+
+          Logger.error("""
+          Command execution timeout: #{inspect(module)}
+          Context: #{inspect(context)}
+          """)
+
+          Messaging.send_to_player(
+            context.player_id,
+            "<red:b>Command timeout:</> The command took too long to execute and was cancelled."
+          )
       end
-    )
+    end)
 
     :ok
   end
