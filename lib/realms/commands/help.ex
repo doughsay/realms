@@ -23,6 +23,7 @@ defmodule Realms.Commands.Help do
       <cyan:b>say \\<message>:</> Chat with players in the same room
       <cyan:b>tell \\<target> \\<message>:</> Send private message to online player
       <cyan:b>look:</> Show current room description
+      <cyan:b>inventory:</> List items you are carrying (alias: inv, i)
       <cyan:b>exits:</> List available exits
       <cyan:b>banner:</> Show game banner
       <cyan:b>clear:</> Clear your message history

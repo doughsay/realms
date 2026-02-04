@@ -7,7 +7,21 @@ defmodule Realms.Commands do
   """
 
   alias Realms.Commands.Command
-  alias Realms.Commands.{Look, Help, Exits, Say, Move, Crash, Hang, Clear, Banner, Tell}
+
+  alias Realms.Commands.{
+    Look,
+    Inventory,
+    Help,
+    Exits,
+    Say,
+    Move,
+    Crash,
+    Hang,
+    Clear,
+    Banner,
+    Tell
+  }
+
   alias Realms.Messaging
 
   require Logger
@@ -17,7 +31,7 @@ defmodule Realms.Commands do
   @type command_context :: %{player_id: binary()}
 
   # Commands in priority order - first match wins
-  @commands [Look, Help, Exits, Say, Move, Crash, Hang, Clear, Banner, Tell]
+  @commands [Look, Inventory, Help, Exits, Say, Move, Crash, Hang, Clear, Banner, Tell]
 
   @doc """
   Parses and executes a player input string in the given context.

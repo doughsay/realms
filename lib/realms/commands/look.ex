@@ -24,6 +24,7 @@ defmodule Realms.Commands.Look do
       |> Enum.reject(&(&1.id == context.player_id))
 
     exits = Game.list_exits_from_room(room.id)
+    items = Game.list_items_in_room(room)
 
     Messaging.send_to_player(
       player.id,
@@ -31,7 +32,7 @@ defmodule Realms.Commands.Look do
       <bright-yellow:b>#{room.name}</>
       <white>#{room.description}</>
 
-      #{format_exits_section(exits)}#{format_players_section(other_players)}
+      #{format_exits_section(exits)}#{format_items_section(items)}#{format_players_section(other_players)}
       """
     )
 
@@ -45,6 +46,17 @@ defmodule Realms.Commands.Look do
   def examples, do: ["look"]
 
   # Private helpers
+
+  defp format_items_section([]), do: ""
+
+  defp format_items_section(items) do
+    item_lines =
+      Enum.map_join(items, "", fn item ->
+        "\n<gray>• </><bright-cyan>#{item.name}</> is here."
+      end)
+
+    "\n<gray>Items:</>" <> item_lines <> "\n"
+  end
 
   defp format_exits_section([]) do
     "<gray>Obvious exits: </><gray-light>none</>\n"
