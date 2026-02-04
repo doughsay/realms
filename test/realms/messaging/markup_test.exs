@@ -2,6 +2,7 @@ defmodule Realms.Messaging.MarkupTest do
   use ExUnit.Case, async: true
 
   import Realms.Messaging.Markup
+
   alias Realms.Messaging.Message
 
   describe "wrap/1" do
@@ -262,6 +263,7 @@ defmodule Realms.Messaging.MarkupTest do
   describe "interpolation" do
     test "works with string interpolation" do
       name = "Alice"
+
       assert wrap("Welcome <cyan>#{name}</>") ==
                {:pre_wrap, ["Welcome ", {:color, :cyan, ["Alice"]}]}
     end
@@ -280,10 +282,11 @@ defmodule Realms.Messaging.MarkupTest do
       title = "The Grand Hall"
       desc = "A magnificent room."
 
-      result = wrap("""
-      <bright-yellow:b>#{title}</>
-      #{desc}
-      """)
+      result =
+        wrap("""
+        <bright-yellow:b>#{title}</>
+        #{desc}
+        """)
 
       assert result ==
                {:pre_wrap,

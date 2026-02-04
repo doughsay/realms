@@ -126,6 +126,8 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def init(player_id) do
+    Process.flag(:trap_exit, true)
+
     case Game.get_player(player_id) do
       nil ->
         {:stop, :player_not_found}
@@ -151,16 +153,6 @@ defmodule Realms.PlayerServer do
             player
           end
 
-        Messaging.subscribe_to_room(player.current_room_id)
-        Messaging.subscribe_to_player(player_id)
-        Messaging.subscribe_to_global()
-
-        Messaging.send_to_room(
-          player.current_room_id,
-          "<green>#{player.name} has arrived!</>",
-          exclude: self()
-        )
-
         state = %__MODULE__{
           player_id: player_id,
           player_name: player.name,
@@ -171,6 +163,16 @@ defmodule Realms.PlayerServer do
           away_timer_ref: nil,
           shutdown_timer_ref: nil
         }
+
+        Messaging.subscribe_to_room(player.current_room_id)
+        Messaging.subscribe_to_player(player_id)
+        Messaging.subscribe_to_global()
+
+        Messaging.send_to_room(
+          player.current_room_id,
+          "<green>#{player.name} has arrived!</>",
+          exclude: self()
+        )
 
         send_welcome_banner(state.player_id)
         Commands.parse_and_execute("look", %{player_id: state.player_id})
@@ -305,20 +307,21 @@ defmodule Realms.PlayerServer do
   defp send_welcome_banner(player_id) do
     banner =
       Message.new([
-        wrap("<bright-yellow:b>Welcome to...</>"),
         pre("""
-        <violet>     ..      ...   </> <purple>       ..      .    </> <indigo>     ..            </> <blue>       ...     </><cyan>     ...     ..      ..    </><teal>        ...</>
-        <violet>  :~"8888x :"%888x </> <purple>    x88f` `..x88. .></> <indigo>  :**888H: `: .xH""</> <blue>   .zf"` `"tu  </><cyan>   x*8888x.:*8888: -"888:  </><teal>    .x888888hx    :</>
-        <violet>8    8888Xf  8888> </> <purple> :8888   xf`*8888%  </> <indigo>X   `8888k XX888   </> <blue> x88      '8N. </><cyan> X   48888X `8888H  8888   </><teal>  d88888888888hxx</>
-        <violet>X88x. ?8888k  8888X</> <purple> :8888f .888  `"`   </> <indigo>'8hx  48888 ?8888  </> <blue>  888k     d88&</><cyan> X8x.  8888X  8888X  !888> </><teal>  8" ... `"*8888%`</>
-        <violet>'8888L'8888X  '%88X</> <purple> 88888' X8888. >"8x </> <indigo>'8888 '8888 `8888  </> <blue>  8888N.  @888F</><cyan> X8888 X8888  88888   "*8%-</><teal> !  "   ` .xnxx.</>
-        <violet>"888X 8888X:xnHH(``</> <purple>88888  ?88888< 888> </> <indigo>%888>'8888  8888   </> <blue> `88888 9888%  </><cyan>'*888!X8888> X8888  xH8>   </><teal>X X   .H8888888%:</>
-        <violet>  ?8~ 8888X X8888  </> <purple>88888   "88888 "8%  </> <indigo>  "8 '888"  8888   </> <blue>   %888 "88F   </><cyan>  `?8 `8888  X888X X888>   </><teal>X 'hn8888888*"   ></>
-        <violet>-~`   8888> X8888  </> <purple>88888 '  `8888>     </> <indigo> .-` X*"    8888   </> <blue>    8"   "*h=~ </><cyan>  -^  '888"  X888  8888>   </><teal>X: `*88888%`     !</>
-        <violet>:H8x  8888  X8888  </> <purple>`8888> %  X88!      </> <indigo>   .xhx.    8888   </> <blue>  z8Weu        </><cyan>   dx '88~x. !88~  8888>   </><teal>'8h.. ``     ..x8></>
-        <violet>8888> 888~  X8888  </> <purple> `888X  `~""`   :   </> <indigo> .H88888h.~`8888.> </> <blue> ""88888i.   Z </><cyan> .8888Xf.888x:!    X888X.: </><teal> `88888888888888f</>
-        <violet>48"` '8*~   `8888!`</> <purple>   "88k.      .~    </> <indigo>.~  `%88!` '888*~  </> <blue>"   "8888888*  </><cyan>:""888":~"888"     `888*"  </><teal>  '%8888888888*"</>
-        <violet>  ^-==""      `""  </> <purple>      `""*==~~`     </> <indigo>       `"     ""   </> <blue>       ^"**""  </><cyan>     "~'    "~        ""   </><teal>      ^"****""`</>
+                                        <bright-yellow:b>Welcome to...</>
+
+                  <violet>@@@@@@@ </> <purple> @@@@@@@@</>  <indigo> @@@@@@ </> <blue> @@@     </>  <cyan>@@@@@@@@@@ </> <teal>  @@@@@@ </>
+                  <violet>@@@@@@@@</> <purple> @@@@@@@@</>  <indigo>@@@@@@@@</> <blue> @@@     </>  <cyan>@@@@@@@@@@@</> <teal> @@@@@@@ </>
+                  <violet>@@!  @@@</> <purple> @@!     </>  <indigo>@@!  @@@</> <blue> @@!     </>  <cyan>@@! @@! @@!</> <teal> !@@     </>
+                  <violet>!@!  @!@</> <purple> !@!     </>  <indigo>!@!  @!@</> <blue> !@!     </>  <cyan>!@! !@! !@!</> <teal> !@!     </>
+                  <violet>@!@!!@! </> <purple> @!!!:!  </>  <indigo>@!@!@!@!</> <blue> @!!     </>  <cyan>@!! !!@ @!@</> <teal> !!@@!!  </>
+                  <violet>!!@!@!  </> <purple> !!!!!:  </>  <indigo>!!!@!!!!</> <blue> !!!     </>  <cyan>!@!   ! !@!</> <teal>  !!@!!! </>
+                  <violet>!!: :!! </> <purple> !!:     </>  <indigo>!!:  !!!</> <blue> !!:     </>  <cyan>!!:     !!:</> <teal>      !:!</>
+                  <violet>:!:  !:!</> <purple> :!:     </>  <indigo>:!:  !:!</> <blue>  :!:    </>  <cyan>:!:     :!:</> <teal>     !:! </>
+                  <violet>::   :::</> <purple>  :: ::::</>  <indigo>::   :::</> <blue>  :: ::::</>  <cyan>:::     :: </> <teal> :::: :: </>
+                  <violet>:   : : </> <purple>: :: ::  </>  <indigo>:   : : </> <blue>: :: : : </>  <cyan>:      :   </> <teal>:: : :   </>
+
+                        <b>REALMS</>: <i>Real-time Elixir Actor Linked Mud Server</>
         """)
       ])
 
@@ -335,6 +338,12 @@ defmodule Realms.PlayerServer do
     )
 
     Game.despawn_player(state.player_id, "timeout")
+
+    if state.dets_table do
+      Logger.debug("Clearing message history for player #{state.player_id} due to timeout")
+      :dets.delete_all_objects(state.dets_table)
+      :dets.sync(state.dets_table)
+    end
   end
 
   defp disconnect_view(state, view_pid) do

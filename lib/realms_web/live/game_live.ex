@@ -5,6 +5,8 @@ defmodule RealmsWeb.GameLive do
   alias Realms.Messaging.Message
   alias Realms.PlayerServer
 
+  require Logger
+
   def mount(_params, %{"player_id" => player_id}, socket) do
     case PlayerServer.ensure_started(player_id) do
       {:ok, _pid} ->
@@ -24,8 +26,15 @@ defmodule RealmsWeb.GameLive do
 
         {:ok, socket}
 
-      {:error, _reason} ->
-        {:ok, assign(socket, :player_id, nil)}
+      {:error, reason} ->
+        Logger.error("Failed to start PlayerServer for #{player_id}: #{inspect(reason)}")
+
+        socket =
+          socket
+          |> assign(:player_id, nil)
+          |> put_flash(:error, "Failed to connect to the game server. Please try again.")
+
+        {:ok, socket}
     end
   end
 
