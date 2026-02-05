@@ -7,7 +7,7 @@ defmodule Realms.Commands do
   """
 
   alias Realms.Commands.Command
-  alias Realms.Commands.{Look, Help, Exits, Say, Move, Crash, Hang, Clear, Banner}
+  alias Realms.Commands.{Look, Help, Exits, Say, Move, Crash, Hang, Clear, Banner, Tell}
   alias Realms.Messaging
 
   require Logger
@@ -17,7 +17,7 @@ defmodule Realms.Commands do
   @type command_context :: %{player_id: binary()}
 
   # Commands in priority order - first match wins
-  @commands [Look, Help, Exits, Say, Move, Crash, Hang, Clear, Banner]
+  @commands [Look, Help, Exits, Say, Move, Crash, Hang, Clear, Banner, Tell]
 
   @doc """
   Parses and executes a player input string in the given context.
@@ -30,6 +30,9 @@ defmodule Realms.Commands do
       {:ok, command} ->
         execute(command, context)
 
+      {:usage, text} ->
+        {:error, text}
+
       :error ->
         {:error, "I don't understand '#{input}'. Type 'help' for commands."}
     end
@@ -40,11 +43,12 @@ defmodule Realms.Commands do
 
   Returns {:ok, command_struct} or :error if no command matches.
   """
-  @spec parse(input :: String.t()) :: {:ok, struct()} | :error
+  @spec parse(input :: String.t()) :: {:ok, struct()} | {:usage, String.t()} | :error
   def parse(input) do
     Enum.find_value(@commands, :error, fn module ->
       case module.parse(input) do
         {:ok, command} -> {:ok, command}
+        {:usage, text} -> {:usage, text}
         :error -> false
       end
     end)
