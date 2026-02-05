@@ -21,6 +21,7 @@ defmodule Realms.Commands.Help do
       <bright-yellow:b>Available Commands</>
       <cyan:b>Movement:</> north, south, east, west, northeast, northwest, southeast, southwest, up, down, in, out
       <cyan:b>say \\<message>:</> Chat with players in the same room
+      <cyan:b>tell \\<target> \\<message>:</> Send private message to online player
       <cyan:b>look:</> Show current room description
       <cyan:b>exits:</> List available exits
       <cyan:b>banner:</> Show game banner

@@ -8,6 +8,15 @@ defmodule Realms.Game do
   alias Realms.Game.{Room, Exit, Player}
   alias Realms.Repo
 
+  def online_players_by_name_prefix(text) do
+    pattern = text <> "%"
+
+    Player
+    |> where([u], ilike(u.name, ^pattern))
+    |> where([u], u.connection_status == :online)
+    |> Repo.all()
+  end
+
   # Room functions
 
   @doc """
