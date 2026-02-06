@@ -8,6 +8,8 @@ defmodule Realms.Game do
   alias Realms.Game.{Room, Exit, Player, Item, Inventory, ItemContent}
   alias Realms.Repo
 
+  require Logger
+
   # Item functions
 
   @doc """
@@ -85,6 +87,40 @@ defmodule Realms.Game do
     Item
     |> where([i], i.location_id == ^inventory_id)
     |> Repo.all()
+  end
+
+  @doc """
+  Finds a single item in an inventory by matching the search term against
+  word prefixes in the item's name. Case-insensitive.
+
+  Returns {:ok, item} if found, {:error, :no_matching_item} otherwise.
+
+  ## Examples
+
+      find_item_in_inventory(inventory_id, "sw")
+      # Matches "rusty iron sword" (matches "sword")
+      # Matches "swift dagger" (matches "swift")
+  """
+  def find_item_in_inventory(inventory_id, search_term) do
+    search_term = String.downcase(search_term)
+
+    # Pattern matches: starts with term OR has space before term
+    # "sw" matches "sword" and "swift dagger"
+    start_pattern = "#{search_term}%"
+    word_pattern = "% #{search_term}%"
+
+    Item
+    |> where([i], i.location_id == ^inventory_id)
+    |> where(
+      [i],
+      ilike(i.name, ^start_pattern) or ilike(i.name, ^word_pattern)
+    )
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> {:error, :no_matching_item}
+      item -> {:ok, item}
+    end
   end
 
   @doc """
@@ -432,12 +468,13 @@ defmodule Realms.Game do
   Executes a function inside a transaction with isolation level set to
   "serializable" and automatically retries on serialization failures.
 
-  Retries up to `retries` times (default 5) if a serialization failure occurs.
+  Retries up to `retries` times (default 10) if a serialization failure occurs.
+  Retries use exponential backoff with jitter to reduce contention.
 
   Ignores nested calls if already inside a transaction.
   """
   @spec tx((-> tx_result()), non_neg_integer()) :: tx_result()
-  def tx(fun, retries \\ 5) do
+  def tx(fun, retries \\ 10) do
     if Repo.in_transaction?() do
       fun.()
     else
@@ -453,6 +490,16 @@ defmodule Realms.Game do
   rescue
     e in Postgrex.Error ->
       if e.postgres.code == :serialization_failure and attempt < max_retries do
+        base_delay = :math.pow(2, attempt) |> round()
+        jitter = :rand.uniform(base_delay)
+        delay_ms = base_delay + jitter
+
+        Logger.warning(
+          "Transaction failed with serialization error. Retrying... (attempt #{attempt + 1}/#{max_retries}) Delay: #{delay_ms}ms"
+        )
+
+        Process.sleep(delay_ms)
+
         do_tx(fun, max_retries, attempt + 1)
       else
         reraise e, __STACKTRACE__

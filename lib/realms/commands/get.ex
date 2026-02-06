@@ -4,7 +4,6 @@ defmodule Realms.Commands.Get do
   """
   @behaviour Realms.Commands.Command
 
-  alias Realms.Commands.Utils
   alias Realms.Game
   alias Realms.Messaging
 
@@ -49,9 +48,8 @@ defmodule Realms.Commands.Get do
     Game.tx(fn ->
       player = Game.get_player!(player_id)
       room = Game.get_room!(player.current_room_id)
-      items = Game.list_items_in_room(room)
 
-      with {:ok, item} <- Utils.match_item(items, search_term) do
+      with {:ok, item} <- Game.find_item_in_inventory(room.inventory_id, search_term) do
         {:ok, _} = Game.move_item_to_player(item, player)
         {:ok, %{player: player, room: room, item: item}}
       end

@@ -4,7 +4,6 @@ defmodule Realms.Commands.Examine do
   """
   @behaviour Realms.Commands.Command
 
-  alias Realms.Commands.Utils
   alias Realms.Game
   alias Realms.Messaging
 
@@ -53,12 +52,13 @@ defmodule Realms.Commands.Examine do
       player = Game.get_player!(player_id)
       room = Game.get_room!(player.current_room_id)
 
-      inventory_items = Game.list_items_in_player(player)
-      room_items = Game.list_items_in_room(room)
-
-      with {:ok, item} <- Utils.match_item(inventory_items ++ room_items, name) do
-        contents = Game.list_items_in_item(item)
-        {:ok, %{item: item, contents: contents}}
+      with {:error, :no_matching_item} <- Game.find_item_in_inventory(player.inventory_id, name),
+           {:error, :no_matching_item} <- Game.find_item_in_inventory(room.inventory_id, name) do
+        {:error, :no_matching_item}
+      else
+        {:ok, item} ->
+          contents = Game.list_items_in_item(item)
+          {:ok, %{item: item, contents: contents}}
       end
     end)
   end

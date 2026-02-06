@@ -5,7 +5,6 @@ defmodule Realms.Commands.GetFrom do
   @behaviour Realms.Commands.Command
 
   alias Realms.Commands.Command
-  alias Realms.Commands.Utils
   alias Realms.Game
   alias Realms.Messaging
 
@@ -74,9 +73,8 @@ defmodule Realms.Commands.GetFrom do
   defp get_from_container(player_id, item_name, container_name) do
     Game.tx(fn ->
       player = Game.get_player!(player_id)
-      inventory_items = Game.list_items_in_player(player)
 
-      with {:ok, container} <- find_held_container(inventory_items, container_name),
+      with {:ok, container} <- find_held_container(player.inventory_id, container_name),
            {:ok, item} <- find_item_in_container(container, item_name) do
         {:ok, _} = Game.move_item_to_player(item, player)
         {:ok, %{player: player, item: item, container: container}}
@@ -84,19 +82,23 @@ defmodule Realms.Commands.GetFrom do
     end)
   end
 
-  defp find_held_container(items, name) do
-    case Utils.match_item(items, name) do
+  defp find_held_container(inventory_id, name) do
+    case Game.find_item_in_inventory(inventory_id, name) do
       {:error, _} -> {:error, :container_not_found}
       {:ok, container} -> {:ok, container}
     end
   end
 
   defp find_item_in_container(container, name) do
-    items = Game.list_items_in_item(container)
+    case Game.get_container_inventory_id(container) do
+      nil ->
+        {:error, {:item_not_found, container}}
 
-    case Utils.match_item(items, name) do
-      {:error, _} -> {:error, {:item_not_found, container}}
-      {:ok, item} -> {:ok, item}
+      container_inventory_id ->
+        case Game.find_item_in_inventory(container_inventory_id, name) do
+          {:error, _} -> {:error, {:item_not_found, container}}
+          {:ok, item} -> {:ok, item}
+        end
     end
   end
 end

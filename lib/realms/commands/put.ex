@@ -6,7 +6,6 @@ defmodule Realms.Commands.Put do
   @behaviour Realms.Commands.Command
 
   alias Realms.Commands.Command
-  alias Realms.Commands.Utils
   alias Realms.Game
   alias Realms.Messaging
 
@@ -82,10 +81,9 @@ defmodule Realms.Commands.Put do
   defp put_in_container(player_id, item_name, container_name) do
     Game.tx(fn ->
       player = Game.get_player!(player_id)
-      items = Game.list_items_in_player(player)
 
-      with {:ok, item} <- find_held_item(items, item_name, :item_not_found),
-           {:ok, container} <- find_held_item(items, container_name, :container_not_found),
+      with {:ok, item} <- find_held_item(player.inventory_id, item_name, :item_not_found),
+           {:ok, container} <- find_held_item(player.inventory_id, container_name, :container_not_found),
            :ok <- check_distinct(item, container),
            :ok <- check_is_container(container),
            {:ok, _} <- Game.move_item_to_item(item, container) do
@@ -94,8 +92,8 @@ defmodule Realms.Commands.Put do
     end)
   end
 
-  defp find_held_item(items, name, error_type) do
-    case Utils.match_item(items, name) do
+  defp find_held_item(inventory_id, name, error_type) do
+    case Game.find_item_in_inventory(inventory_id, name) do
       {:error, _} -> {:error, error_type}
       {:ok, item} -> {:ok, item}
     end
