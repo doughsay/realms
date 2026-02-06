@@ -16,19 +16,20 @@ defmodule Realms.Commands.Exits do
 
   @impl true
   def execute(%__MODULE__{}, context) do
-    player = Game.get_player!(context.player_id)
-    room = player.current_room
-    exits = Game.list_exits_from_room(room.id)
+    {:ok, %{exits: exits}} = fetch(context)
 
-    message =
-      if exits == [] do
-        "<gray>Obvious exits: </><gray-light>none</>"
-      else
+    case exits do
+      [] ->
+        Messaging.send_to_player(context.player_id, "<gray>Obvious exits: </><gray-light>none</>")
+
+      exits ->
         exit_list = exits |> Enum.map(& &1.direction) |> Enum.sort() |> Enum.join(", ")
-        "<gray>Obvious exits: </><bright-cyan>#{exit_list}</>"
-      end
 
-    Messaging.send_to_player(context.player_id, message)
+        Messaging.send_to_player(
+          context.player_id,
+          "<gray>Obvious exits: </><bright-cyan>#{exit_list}</>"
+        )
+    end
 
     :ok
   end
@@ -38,4 +39,15 @@ defmodule Realms.Commands.Exits do
 
   @impl true
   def examples, do: ["exits"]
+
+  # Private helpers
+
+  defp fetch(context) do
+    Game.tx(fn ->
+      player = Game.get_player!(context.player_id)
+      exits = Game.list_exits_from_room(player.current_room_id)
+
+      {:ok, %{exits: exits}}
+    end)
+  end
 end

@@ -10,8 +10,7 @@ defmodule Realms.Game.Item do
     field :name, :string
     field :description, :string
 
-    has_one :item_location, Realms.Game.ItemLocation
-    has_one :location, through: [:item_location, :inventory]
+    belongs_to :location, Realms.Game.Inventory, foreign_key: :location_id
 
     has_one :item_content, Realms.Game.ItemContent
     has_one :inventory, through: [:item_content, :inventory]
@@ -21,7 +20,7 @@ defmodule Realms.Game.Item do
 
   def changeset(item, attrs) do
     item
-    |> cast(attrs, [:name, :description])
-    |> validate_required([:name])
+    |> cast(attrs, [:name, :description, :location_id])
+    |> validate_required([:name, :location_id])
   end
 end

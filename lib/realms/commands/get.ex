@@ -20,28 +20,18 @@ defmodule Realms.Commands.Get do
 
   @impl true
   def execute(%__MODULE__{item_name: name}, context) do
-    player = Game.get_player!(context.player_id)
-    room = player.current_room
-    items = Game.list_items_in_room(room)
+    case get_item(context.player_id, name) do
+      {:ok, %{player: player, room: room, item: item}} ->
+        Messaging.send_to_player(player.id, "<green>You pick up #{item.name}.</>")
 
-    case Utils.match_item(items, name) do
-      nil ->
-        Messaging.send_to_player(player.id, "<red>You don't see '#{name}' here.</>")
+        Messaging.send_to_room(
+          room.id,
+          "<yellow>#{player.name}</> picks up <cyan>#{item.name}</>.",
+          exclude: player.id
+        )
 
-      item ->
-        case Game.move_item_to_player(item, player) do
-          {:ok, _} ->
-            Messaging.send_to_player(player.id, "<green>You pick up #{item.name}.</>")
-
-            Messaging.send_to_room(
-              room.id,
-              "<yellow>#{player.name}</> picks up <cyan>#{item.name}</>.",
-              exclude: player.id
-            )
-
-          {:error, _} ->
-            Messaging.send_to_player(player.id, "<red>You can't pick that up.</>")
-        end
+      {:error, :no_matching_item} ->
+        Messaging.send_to_player(context.player_id, "<red>You don't see '#{name}' here.</>")
     end
 
     :ok
@@ -52,4 +42,19 @@ defmodule Realms.Commands.Get do
 
   @impl true
   def examples, do: ["get sword"]
+
+  # Private helpers
+
+  defp get_item(player_id, search_term) do
+    Game.tx(fn ->
+      player = Game.get_player!(player_id)
+      room = Game.get_room!(player.current_room_id)
+      items = Game.list_items_in_room(room)
+
+      with {:ok, item} <- Utils.match_item(items, search_term) do
+        {:ok, _} = Game.move_item_to_player(item, player.inventory_id)
+        {:ok, %{player: player, room: room, item: item}}
+      end
+    end)
+  end
 end

@@ -152,7 +152,7 @@ defmodule Realms.PlayerServer do
 
         player =
           if is_nil(player.current_room_id) do
-            {:ok, updated_player} = Game.spawn_player(player.id, player.spawn_room.id)
+            {:ok, updated_player} = Game.spawn_player(player.id, player.spawn_room_id)
             updated_player
           else
             player

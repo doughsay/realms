@@ -1,26 +1,14 @@
 defmodule Realms.Game do
   @moduledoc """
-  The Game context for managing rooms and exits.
+  The Game context for managing game state.
   """
 
   import Ecto.Query
 
-  alias Realms.Game.{Room, Exit, Player, Item, Inventory, ItemLocation, ItemContent}
+  alias Realms.Game.{Room, Exit, Player, Item, Inventory, ItemContent}
   alias Realms.Repo
 
   # Item functions
-
-  @doc """
-  Lists all items.
-  """
-  def list_items do
-    Repo.all(Item)
-  end
-
-  @doc """
-  Gets a single item by ID. Raises if not found.
-  """
-  def get_item!(id), do: Repo.get!(Item, id)
 
   @doc """
   Creates an item.
@@ -29,7 +17,7 @@ defmodule Realms.Game do
     * `:has_inventory` - boolean, if true creates an inventory for the item (e.g. for a bag).
   """
   def create_item(attrs, opts \\ []) do
-    Repo.transact(fn ->
+    tx(fn ->
       with {:ok, item} <- %Item{} |> Item.changeset(attrs) |> Repo.insert(),
            {:ok, _inventory_or_nil} <-
              maybe_create_item_inventory(item, Keyword.get(opts, :has_inventory, false)) do
@@ -56,12 +44,9 @@ defmodule Realms.Game do
   If the item is already somewhere else, it is moved.
   """
   def move_item_to_inventory(%Item{} = item, inventory_id) do
-    %ItemLocation{}
-    |> ItemLocation.changeset(%{item_id: item.id, inventory_id: inventory_id})
-    |> Repo.insert(
-      on_conflict: :replace_all,
-      conflict_target: :item_id
-    )
+    item
+    |> Item.changeset(%{location_id: inventory_id})
+    |> Repo.update()
   end
 
   @doc """
@@ -98,8 +83,7 @@ defmodule Realms.Game do
   """
   def list_items_in_inventory(inventory_id) do
     Item
-    |> join(:inner, [i], l in ItemLocation, on: l.item_id == i.id)
-    |> where([i, l], l.inventory_id == ^inventory_id)
+    |> where([i], i.location_id == ^inventory_id)
     |> Repo.all()
   end
 
@@ -127,14 +111,18 @@ defmodule Realms.Game do
     end
   end
 
-  # Room functions
-
   @doc """
-  Returns the list of all rooms.
+  Gets the inventory ID associated with a container item.
+  Returns nil if the item is not a container.
   """
-  def list_rooms do
-    Repo.all(Room)
+  def get_container_inventory_id(%Item{} = container) do
+    case Repo.get_by(ItemContent, item_id: container.id) do
+      nil -> nil
+      %ItemContent{inventory_id: inventory_id} -> inventory_id
+    end
   end
+
+  # Room functions
 
   @doc """
   Gets a single room by ID. Raises if not found.
@@ -144,26 +132,17 @@ defmodule Realms.Game do
   end
 
   @doc """
-  Gets a room by name. Returns nil if not found.
+  Gets a room by name. Returns {:ok, room} or {:error, :room_not_found}.
   """
-  def get_room_by_name(name) do
-    Repo.get_by(Room, name: name)
-  end
-
-  @doc """
-  Gets a room with its exits preloaded.
-  """
-  def get_room_with_exits!(id) do
-    Room
-    |> Repo.get!(id)
-    |> Repo.preload(:exits_from)
+  def fetch_room_by_name(name) do
+    Repo.fetch_by(Room, [name: name], error_tag: :room_not_found)
   end
 
   @doc """
   Creates a room.
   """
   def create_room(attrs) do
-    Repo.transact(fn ->
+    tx(fn ->
       with {:ok, inventory} <- Repo.insert(%Inventory{}) do
         attrs = Map.put(attrs, :inventory_id, inventory.id)
 
@@ -172,22 +151,6 @@ defmodule Realms.Game do
         |> Repo.insert()
       end
     end)
-  end
-
-  @doc """
-  Updates a room.
-  """
-  def update_room(%Room{} = room, attrs) do
-    room
-    |> Room.changeset(attrs)
-    |> Repo.update()
-  end
-
-  @doc """
-  Deletes a room.
-  """
-  def delete_room(%Room{} = room) do
-    Repo.delete(room)
   end
 
   # Exit functions
@@ -225,7 +188,7 @@ defmodule Realms.Game do
   Creates bidirectional exits between two rooms.
   """
   def create_bidirectional_exit(from_room_id, to_room_id, direction, reverse_direction) do
-    Repo.transaction(fn ->
+    tx(fn ->
       with {:ok, exit1} <-
              create_exit(%{
                from_room_id: from_room_id,
@@ -238,69 +201,33 @@ defmodule Realms.Game do
                to_room_id: from_room_id,
                direction: reverse_direction
              }) do
-        {exit1, exit2}
-      else
-        {:error, changeset} -> Repo.rollback(changeset)
+        {:ok, {exit1, exit2}}
       end
     end)
-  end
-
-  @doc """
-  Deletes an exit.
-  """
-  def delete_exit(%Exit{} = exit) do
-    Repo.delete(exit)
-  end
-
-  # Navigation helpers
-
-  @doc """
-  Attempts to move from a room in a given direction.
-  Returns {:ok, room} if successful, {:error, :no_exit} otherwise.
-  """
-  def move(from_room_id, direction) do
-    case get_exit_by_direction(from_room_id, direction) do
-      %Exit{to_room: to_room} -> {:ok, to_room}
-      nil -> {:error, :no_exit}
-    end
-  end
-
-  @doc """
-  Gets a map of available exits from a room.
-  Returns a map of direction => destination room name.
-  """
-  def get_available_exits(room_id) do
-    room_id
-    |> list_exits_from_room()
-    |> Map.new(fn exit -> {exit.direction, exit.to_room.name} end)
   end
 
   # Player functions
 
   @doc """
-  Gets a player by ID with all room associations and user preloaded.
+  Gets a player by ID.
   Returns nil if not found.
   """
   def get_player(id) do
-    Player
-    |> Repo.get(id)
-    |> case do
-      nil -> nil
-      player -> Repo.preload(player, [:current_room, :spawn_room, :user])
-    end
+    Repo.get(Player, id)
   end
 
+  @doc """
+  Gets a player by ID. Raises if not found.
+  """
   def get_player!(id) do
-    Player
-    |> Repo.get!(id)
-    |> Repo.preload([:current_room, :spawn_room, :user])
+    Repo.get!(Player, id)
   end
 
   @doc """
   Creates a player.
   """
   def create_player(attrs) do
-    Repo.transact(fn ->
+    tx(fn ->
       with {:ok, inventory} <- Repo.insert(%Inventory{}) do
         attrs = Map.put(attrs, :inventory_id, inventory.id)
 
@@ -315,12 +242,9 @@ defmodule Realms.Game do
   Updates a player and returns it with all associations preloaded.
   """
   def update_player(%Player{} = player, attrs) do
-    with {:ok, updated_player} <-
-           player
-           |> Player.changeset(attrs)
-           |> Repo.update() do
-      {:ok, Repo.preload(updated_player, [:current_room, :spawn_room, :user], force: true)}
-    end
+    player
+    |> Player.changeset(attrs)
+    |> Repo.update()
   end
 
   @doc """
@@ -345,36 +269,36 @@ defmodule Realms.Game do
   The player will spawn in the Town Square.
   """
   def create_player_for_user(user_id, attrs) do
-    town_square = get_room_by_name("Town Square")
+    tx(fn ->
+      with {:ok, town_square} <- fetch_room_by_name("Town Square"),
+           {:ok, inventory} <- Repo.insert(%Inventory{}),
+           attrs =
+             attrs
+             |> Map.put(:user_id, user_id)
+             |> Map.put(:spawn_room_id, town_square.id)
+             |> Map.put(:last_seen_at, DateTime.utc_now())
+             |> Map.put(:inventory_id, inventory.id),
+           {:ok, player} <-
+             %Player{}
+             |> Player.changeset(attrs)
+             |> Repo.insert(),
+           duck_name = "#{Map.get(attrs, :name) || "Player"}'s Lucky Rubber Duck",
+           {:ok, _duck} <-
+             create_item(%{
+               name: duck_name,
+               description:
+                 "A small, yellow rubber duck. It squeaks when you squeeze it. It seems to bring you comfort.",
+               location_id: inventory.id
+             }) do
+        {:ok, player}
+      else
+        {:error, :room_not_found} ->
+          {:error, :no_starting_room}
 
-    if is_nil(town_square) do
-      {:error, :no_starting_room}
-    else
-      Repo.transact(fn ->
-        with {:ok, inventory} <- Repo.insert(%Inventory{}),
-             attrs =
-               attrs
-               |> Map.put(:user_id, user_id)
-               |> Map.put(:spawn_room_id, town_square.id)
-               |> Map.put(:last_seen_at, DateTime.utc_now())
-               |> Map.put(:inventory_id, inventory.id),
-             {:ok, player} <-
-               %Player{}
-               |> Player.changeset(attrs)
-               |> Repo.insert(),
-             duck_name = "#{Map.get(attrs, :name) || "Player"}'s Lucky Rubber Duck",
-             {:ok, duck} <-
-               create_item(%{
-                 name: duck_name,
-                 description:
-                   "A small, yellow rubber duck. It squeaks when you squeeze it. It seems to bring you comfort."
-               }) do
-          move_item_to_inventory(duck, inventory.id)
-
-          {:ok, player}
-        end
-      end)
-    end
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end)
   end
 
   @doc """
@@ -382,16 +306,16 @@ defmodule Realms.Game do
   Returns {:ok, new_room} or {:error, reason}.
   """
   def move_player(%Player{} = player, direction) do
-    case get_exit_by_direction(player.current_room_id, direction) do
-      nil ->
-        {:error, :no_exit}
+    tx(fn ->
+      case get_exit_by_direction(player.current_room_id, direction) do
+        nil ->
+          {:error, :no_exit}
 
-      %Exit{to_room: new_room} ->
-        case update_player(player, %{current_room_id: new_room.id}) do
-          {:ok, _updated_player} -> {:ok, new_room}
-          error -> error
-        end
-    end
+        %Exit{to_room: new_room} ->
+          {:ok, _player} = update_player(player, %{current_room_id: new_room.id})
+          {:ok, new_room}
+      end
+    end)
   end
 
   @doc """
@@ -498,5 +422,40 @@ defmodule Realms.Game do
     {count, _} = Repo.update_all(query, [])
 
     {:ok, count}
+  end
+
+  # Serializable and retryable transactions
+
+  @type tx_result :: {:ok, term()} | {:error, term()}
+
+  @doc """
+  Executes a function inside a transaction with isolation level set to
+  "serializable" and automatically retries on serialization failures.
+
+  Retries up to `retries` times (default 5) if a serialization failure occurs.
+
+  Ignores nested calls if already inside a transaction.
+  """
+  @spec tx((-> tx_result()), non_neg_integer()) :: tx_result()
+  def tx(fun, retries \\ 5) do
+    if Repo.in_transaction?() do
+      fun.()
+    else
+      do_tx(fun, retries, 0)
+    end
+  end
+
+  defp do_tx(fun, max_retries, attempt) do
+    Repo.transact(fn ->
+      Repo.query!("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;")
+      fun.()
+    end)
+  rescue
+    e in Postgrex.Error ->
+      if e.postgres.code == :serialization_failure and attempt < max_retries do
+        do_tx(fun, max_retries, attempt + 1)
+      else
+        reraise e, __STACKTRACE__
+      end
   end
 end

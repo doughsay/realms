@@ -4,14 +4,14 @@ defmodule Realms.Commands.GetFrom do
   """
   @behaviour Realms.Commands.Command
 
+  alias Realms.Commands.Command
   alias Realms.Commands.Utils
   alias Realms.Game
   alias Realms.Messaging
 
   defstruct [:item_name, :container_name]
 
-  @impl true
-
+  @impl Command
   def parse("get " <> rest) do
     case String.split(rest, " from ", parts: 2) do
       [item_name, container_name] ->
@@ -32,55 +32,71 @@ defmodule Realms.Commands.GetFrom do
 
   def parse(_), do: :error
 
-  @impl true
-
+  @impl Command
   def execute(%__MODULE__{item_name: item_name, container_name: container_name}, context) do
-    player = Game.get_player!(context.player_id)
+    case get_from_container(context.player_id, item_name, container_name) do
+      {:ok, %{player: player, item: item, container: container}} ->
+        Messaging.send_to_player(
+          player.id,
+          "<green>You take #{item.name} from #{container.name}.</>"
+        )
 
-    inventory_items = Game.list_items_in_player(player)
+        Messaging.send_to_room(
+          player.current_room_id,
+          "<yellow>#{player.name}</> takes something from <cyan>#{container.name}</>.",
+          exclude: player.id
+        )
 
-    case Utils.match_item(inventory_items, container_name) do
-      nil ->
-        Messaging.send_to_player(player.id, "<red>You're not holding '#{container_name}'.</>")
+      {:error, :container_not_found} ->
+        Messaging.send_to_player(
+          context.player_id,
+          "<red>You're not holding '#{container_name}'.</>"
+        )
 
-      container ->
-        container_items = Game.list_items_in_item(container)
-
-        case Utils.match_item(container_items, item_name) do
-          nil ->
-            Messaging.send_to_player(
-              player.id,
-              "<red>You don't see '#{item_name}' in the #{container.name}.</>"
-            )
-
-          item ->
-            case Game.move_item_to_player(item, player) do
-              {:ok, _} ->
-                Messaging.send_to_player(
-                  player.id,
-                  "<green>You take #{item.name} from #{container.name}.</>"
-                )
-
-                Messaging.send_to_room(
-                  player.current_room_id,
-                  "<yellow>#{player.name}</> takes something from <cyan>#{container.name}</>.",
-                  exclude: player.id
-                )
-
-              {:error, _} ->
-                Messaging.send_to_player(player.id, "<red>You can't take that.</>")
-            end
-        end
+      {:error, {:item_not_found, container}} ->
+        Messaging.send_to_player(
+          context.player_id,
+          "<red>You don't see '#{item_name}' in the #{container.name}.</>"
+        )
     end
 
     :ok
   end
 
-  @impl true
-
+  @impl Command
   def description, do: "Get an item from a container"
 
-  @impl true
-
+  @impl Command
   def examples, do: ["get apple from backpack"]
+
+  # Private helpers
+
+  defp get_from_container(player_id, item_name, container_name) do
+    Game.tx(fn ->
+      player = Game.get_player!(player_id)
+      inventory_items = Game.list_items_in_player(player)
+
+      with {:ok, container} <- find_held_container(inventory_items, container_name),
+           {:ok, item} <- find_item_in_container(container, item_name) do
+        {:ok, _} = Game.move_item_to_player(item, player)
+        {:ok, %{player: player, item: item, container: container}}
+      end
+    end)
+  end
+
+  defp find_held_container(items, name) do
+    case Utils.match_item(items, name) do
+      {:error, _} -> {:error, :container_not_found}
+      {:ok, container} -> {:ok, container}
+    end
+  end
+
+  defp find_item_in_container(container, name) do
+    items = Game.list_items_in_item(container)
+
+    case Utils.match_item(items, name) do
+      {:error, _} -> {:error, {:item_not_found, container}}
+      {:ok, item} -> {:ok, item}
+    end
+  end
 end

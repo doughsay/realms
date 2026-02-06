@@ -17,8 +17,8 @@ defmodule Realms.GameFixtures do
   Get or create the Town Square room.
   """
   def town_square_fixture do
-    case Game.get_room_by_name("Town Square") do
-      nil ->
+    case Game.fetch_room_by_name("Town Square") do
+      {:error, :room_not_found} ->
         {:ok, room} =
           Game.create_room(%{
             name: "Town Square",
@@ -27,7 +27,7 @@ defmodule Realms.GameFixtures do
 
         room
 
-      room ->
+      {:ok, room} ->
         room
     end
   end

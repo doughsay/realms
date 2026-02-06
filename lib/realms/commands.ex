@@ -105,18 +105,12 @@ defmodule Realms.Commands do
           module.execute(command, context)
         rescue
           error ->
-            Logger.error("""
-            Command execution failed: #{inspect(module)}
-            Error: #{Exception.format(:error, error, __STACKTRACE__)}
-            Context: #{inspect(context)}
-            """)
-
             Messaging.send_to_player(
               context.player_id,
               "<red:b>Command error:</> An error occurred while executing that command."
             )
 
-            :ok
+            reraise error, __STACKTRACE__
         end
       end)
 

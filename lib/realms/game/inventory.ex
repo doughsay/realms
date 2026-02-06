@@ -7,8 +7,7 @@ defmodule Realms.Game.Inventory do
   @foreign_key_type :binary_id
 
   schema "inventories" do
-    has_many :item_locations, Realms.Game.ItemLocation
-    has_many :items, through: [:item_locations, :item]
+    has_many :items, Realms.Game.Item, foreign_key: :location_id
 
     timestamps(type: :utc_datetime, updated_at: false)
   end

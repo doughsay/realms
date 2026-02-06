@@ -11,21 +11,14 @@ defmodule Realms.Repo.Migrations.AddItems do
       add :id, :binary_id, primary_key: true
       add :name, :text, null: false
       add :description, :text
+
+      add :location_id, references(:inventories, type: :binary_id, on_delete: :restrict),
+        null: false
+
       timestamps(type: :utc_datetime)
     end
 
     create table(:item_contents, primary_key: false) do
-      add :item_id, references(:items, type: :binary_id, on_delete: :delete_all),
-        null: false,
-        primary_key: true
-
-      add :inventory_id, references(:inventories, type: :binary_id, on_delete: :delete_all),
-        null: false
-
-      timestamps(type: :utc_datetime, updated_at: false)
-    end
-
-    create table(:item_locations, primary_key: false) do
       add :item_id, references(:items, type: :binary_id, on_delete: :delete_all),
         null: false,
         primary_key: true
@@ -74,11 +67,11 @@ defmodule Realms.Repo.Migrations.AddItems do
       modify :inventory_id, :binary_id, null: false
     end
 
-    create unique_index(:item_locations, [:item_id])
     create unique_index(:item_contents, [:item_id])
     create unique_index(:item_contents, [:inventory_id])
     create unique_index(:rooms, [:inventory_id])
     create unique_index(:players, [:inventory_id])
+    create index(:items, [:location_id])
   end
 
   def down do
@@ -86,7 +79,7 @@ defmodule Realms.Repo.Migrations.AddItems do
     drop index(:rooms, [:inventory_id])
     drop index(:item_contents, [:inventory_id])
     drop index(:item_contents, [:item_id])
-    drop index(:item_locations, [:item_id])
+    drop index(:items, [:location_id])
 
     alter table(:players) do
       remove :inventory_id
@@ -96,7 +89,6 @@ defmodule Realms.Repo.Migrations.AddItems do
       remove :inventory_id
     end
 
-    drop table(:item_locations)
     drop table(:item_contents)
     drop table(:items)
     drop table(:inventories)

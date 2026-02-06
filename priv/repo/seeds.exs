@@ -10,6 +10,7 @@ IO.puts("Clearing existing data...")
 Realms.Repo.delete_all(Realms.Game.Player)
 Realms.Repo.delete_all(Realms.Game.Exit)
 Realms.Repo.delete_all(Realms.Game.Room)
+Realms.Repo.delete_all(Realms.Game.Item)
 
 rooms = %{
   town_square: %{
@@ -116,27 +117,33 @@ items = [
 # Create regular items
 for item_data <- items do
   location_id = room_ids[item_data.location]
-  {:ok, item} = Game.create_item(Map.take(item_data, [:name, :description]))
-
-  # Fetch the room struct to pass to move_item_to_room
   room = Game.get_room!(location_id)
-  Game.move_item_to_room(item, room)
+
+  {:ok, item} =
+    Game.create_item(
+      Map.put(
+        Map.take(item_data, [:name, :description]),
+        :location_id,
+        room.inventory_id
+      )
+    )
 
   IO.puts("Created item: #{item.name} in #{room.name}")
 end
 
 # Create a container item (Backpack) in the Town Square
+town_square = Game.get_room!(room_ids[:town_square])
+
 {:ok, backpack} =
   Game.create_item(
     %{
       name: "Leather Backpack",
-      description: "A worn leather backpack with plenty of pockets."
+      description: "A worn leather backpack with plenty of pockets.",
+      location_id: town_square.inventory_id
     },
     has_inventory: true
   )
 
-town_square = Game.get_room!(room_ids[:town_square])
-Game.move_item_to_room(backpack, town_square)
 IO.puts("Created container: #{backpack.name} in #{town_square.name}")
 
 # Create items inside the Backpack
@@ -151,9 +158,10 @@ backpack_contents = [
   }
 ]
 
+backpack_inventory_id = Game.get_container_inventory_id(backpack)
+
 for content_data <- backpack_contents do
-  {:ok, item} = Game.create_item(content_data)
-  Game.move_item_to_item(item, backpack)
+  {:ok, item} = Game.create_item(Map.put(content_data, :location_id, backpack_inventory_id))
   IO.puts("Created item: #{item.name} inside #{backpack.name}")
 end
 

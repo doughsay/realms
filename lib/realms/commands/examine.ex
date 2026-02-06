@@ -25,26 +25,18 @@ defmodule Realms.Commands.Examine do
 
   @impl true
   def execute(%__MODULE__{item_name: name}, context) do
-    player = Game.get_player!(context.player_id)
-    room = player.current_room
-
-    inventory_items = Game.list_items_in_player(player)
-    room_items = Game.list_items_in_room(room)
-
-    case Utils.match_item(inventory_items ++ room_items, name) do
-      nil ->
-        Messaging.send_to_player(player.id, "<red>You don't see '#{name}' here.</>")
-
-      item ->
-        contents = Game.list_items_in_item(item)
-
+    case fetch(context.player_id, name) do
+      {:ok, %{item: item, contents: contents}} ->
         message = """
         <bright-cyan:b>#{item.name}</>
         <white>#{item.description}</>
         #{format_contents(contents)}
         """
 
-        Messaging.send_to_player(player.id, message)
+        Messaging.send_to_player(context.player_id, message)
+
+      {:error, :no_matching_item} ->
+        Messaging.send_to_player(context.player_id, "<red>You don't see '#{name}' here.</>")
     end
 
     :ok
@@ -55,6 +47,21 @@ defmodule Realms.Commands.Examine do
 
   @impl true
   def examples, do: ["examine sword", "x bag"]
+
+  defp fetch(player_id, name) do
+    Game.tx(fn ->
+      player = Game.get_player!(player_id)
+      room = Game.get_room!(player.current_room_id)
+
+      inventory_items = Game.list_items_in_player(player)
+      room_items = Game.list_items_in_room(room)
+
+      with {:ok, item} <- Utils.match_item(inventory_items ++ room_items, name) do
+        contents = Game.list_items_in_item(item)
+        {:ok, %{item: item, contents: contents}}
+      end
+    end)
+  end
 
   defp format_contents([]), do: ""
 

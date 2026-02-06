@@ -16,8 +16,7 @@ defmodule Realms.Commands.Inventory do
 
   @impl true
   def execute(%__MODULE__{}, context) do
-    player = Game.get_player!(context.player_id)
-    items = Game.list_items_in_player(player)
+    {:ok, %{player: player, items: items}} = fetch(context)
 
     Messaging.send_to_player(
       player.id,
@@ -38,6 +37,15 @@ defmodule Realms.Commands.Inventory do
   def examples, do: ["inventory", "inv", "i"]
 
   # Private helpers
+
+  defp fetch(context) do
+    Game.tx(fn ->
+      player = Game.get_player!(context.player_id)
+      items = Game.list_items_in_player(player)
+
+      {:ok, %{player: player, items: items}}
+    end)
+  end
 
   defp format_items_section([]) do
     "<gray>Your hands are empty.</>\n"
