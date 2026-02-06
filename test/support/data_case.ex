@@ -29,16 +29,23 @@ defmodule Realms.DataCase do
   end
 
   setup tags do
-    Realms.DataCase.setup_sandbox(tags)
+    Realms.DataCase.setup_db(tags)
     :ok
   end
 
   @doc """
-  Sets up the sandbox based on the test tags.
+  Sets up the database by truncating tables.
+
+  NOTE: Any new tables added to the application must be included in the TRUNCATE
+  statement for this function to work properly.
   """
-  def setup_sandbox(tags) do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Realms.Repo, shared: not tags[:async])
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+  def setup_db(_tags) do
+    Ecto.Adapters.SQL.query!(
+      Realms.Repo,
+      "TRUNCATE users, users_tokens, rooms, exits, players, items, inventories, item_contents CASCADE"
+    )
+
+    :ok
   end
 
   @doc """

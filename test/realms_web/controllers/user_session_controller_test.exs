@@ -1,5 +1,5 @@
 defmodule RealmsWeb.UserSessionControllerTest do
-  use RealmsWeb.ConnCase, async: true
+  use RealmsWeb.ConnCase, async: false
 
   import Realms.AccountsFixtures
 

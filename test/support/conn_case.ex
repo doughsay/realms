@@ -33,7 +33,7 @@ defmodule RealmsWeb.ConnCase do
   end
 
   setup tags do
-    Realms.DataCase.setup_sandbox(tags)
+    Realms.DataCase.setup_db(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
@@ -118,13 +118,5 @@ defmodule RealmsWeb.ConnCase do
       |> select_player(player2)
 
     %{user2: user2, player2: player2, conn2: conn2}
-  end
-
-  @doc """
-  Allows a process to access the SQL sandbox in tests.
-  Call this after starting a process that needs database access.
-  """
-  def allow_sandbox_access(pid) do
-    Ecto.Adapters.SQL.Sandbox.allow(Realms.Repo, self(), pid)
   end
 end

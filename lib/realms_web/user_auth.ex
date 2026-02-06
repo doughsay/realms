@@ -130,10 +130,16 @@ defmodule RealmsWeb.UserAuth do
     player_id = get_session(conn, :player_id)
     delete_csrf_token()
 
-    conn
-    |> configure_session(renew: true)
-    |> clear_session()
-    |> put_session(:player_id, player_id)
+    conn =
+      conn
+      |> configure_session(renew: true)
+      |> clear_session()
+
+    if player_id do
+      put_session(conn, :player_id, player_id)
+    else
+      conn
+    end
   end
 
   defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}, _),
