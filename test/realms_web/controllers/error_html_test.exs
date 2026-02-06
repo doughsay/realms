@@ -1,5 +1,5 @@
 defmodule RealmsWeb.ErrorHTMLTest do
-  use RealmsWeb.ConnCase, async: true
+  use RealmsWeb.ConnCase, async: false
 
   # Bring render_to_string/4 for testing custom views
   import Phoenix.Template, only: [render_to_string: 4]

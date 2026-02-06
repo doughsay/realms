@@ -1,5 +1,5 @@
 defmodule RealmsWeb.ErrorJSONTest do
-  use RealmsWeb.ConnCase, async: true
+  use RealmsWeb.ConnCase, async: false
 
   test "renders 404" do
     assert RealmsWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}

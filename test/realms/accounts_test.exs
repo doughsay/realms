@@ -1,5 +1,5 @@
 defmodule Realms.AccountsTest do
-  use Realms.DataCase
+  use Realms.DataCase, async: false
 
   import Realms.AccountsFixtures
 

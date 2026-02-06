@@ -1,17 +1,13 @@
 defmodule RealmsWeb.PlayerManagementLiveTest do
-  use RealmsWeb.ConnCase
+  use RealmsWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
   import Realms.AccountsFixtures
+  import Realms.GameFixtures
 
   describe "PlayerManagementLive" do
     setup %{conn: conn} do
-      # Create test room
-      {:ok, _town_square} =
-        Realms.Game.create_room(%{
-          name: "Town Square",
-          description: "A bustling town square."
-        })
+      town_square_fixture()
 
       user = user_fixture()
       %{conn: log_in_user(conn, user), user: user}

@@ -7,7 +7,7 @@ defmodule RealmsWeb.GameLive do
 
   require Logger
 
-  def mount(_params, %{"player_id" => player_id}, socket) do
+  def mount(_params, %{"player_id" => player_id}, socket) when not is_nil(player_id) do
     case PlayerServer.ensure_started(player_id) do
       {:ok, _pid} ->
         if connected?(socket) do

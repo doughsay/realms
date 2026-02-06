@@ -29,16 +29,43 @@ defmodule Realms.DataCase do
   end
 
   setup tags do
-    Realms.DataCase.setup_sandbox(tags)
+    Realms.DataCase.setup_db(tags)
     :ok
   end
 
   @doc """
-  Sets up the sandbox based on the test tags.
+  Sets up the database by truncating tables.
   """
-  def setup_sandbox(tags) do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Realms.Repo, shared: not tags[:async])
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+  def setup_db(_tags) do
+    cleanup_processes()
+    truncate_tables()
+  end
+
+  defp cleanup_processes do
+    # Gracefully terminate all running command tasks
+    for {_, pid, _, _} <- Task.Supervisor.children(Realms.CommandSupervisor) do
+      Task.Supervisor.terminate_child(Realms.CommandSupervisor, pid)
+    end
+
+    # Gracefully terminate all running player servers
+    for {_, pid, _, _} <- DynamicSupervisor.which_children(Realms.PlayerSupervisor) do
+      DynamicSupervisor.terminate_child(Realms.PlayerSupervisor, pid)
+    end
+
+    # Wait for shutdowns to propagate to ensure locks are released
+    Liveness.eventually(
+      fn ->
+        Task.Supervisor.children(Realms.CommandSupervisor) == [] and
+          DynamicSupervisor.which_children(Realms.PlayerSupervisor) == []
+      end,
+      1000
+    )
+  end
+
+  defp truncate_tables do
+    tables = "users, users_tokens, rooms, exits, players, items, inventories, item_contents"
+    Realms.Repo.query!("TRUNCATE #{tables} CASCADE")
+    :ok
   end
 
   @doc """

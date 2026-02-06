@@ -1,5 +1,5 @@
 defmodule RealmsWeb.UserLive.LoginTest do
-  use RealmsWeb.ConnCase, async: true
+  use RealmsWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
   import Realms.AccountsFixtures

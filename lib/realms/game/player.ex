@@ -21,6 +21,7 @@ defmodule Realms.Game.Player do
       type: :binary_id
 
     belongs_to :user, Realms.Accounts.User
+    belongs_to :inventory, Realms.Game.Inventory
 
     timestamps(type: :utc_datetime)
   end
@@ -35,9 +36,10 @@ defmodule Realms.Game.Player do
       :connection_status,
       :last_seen_at,
       :user_id,
-      :despawn_reason
+      :despawn_reason,
+      :inventory_id
     ])
-    |> validate_required([:name])
+    |> validate_required([:name, :inventory_id])
     |> validate_length(:name, min: 1, max: 100)
     |> foreign_key_constraint(:current_room_id)
     |> foreign_key_constraint(:spawn_room_id)

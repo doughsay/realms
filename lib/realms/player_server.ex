@@ -152,7 +152,7 @@ defmodule Realms.PlayerServer do
 
         player =
           if is_nil(player.current_room_id) do
-            {:ok, updated_player} = Game.spawn_player(player.id, player.spawn_room.id)
+            {:ok, updated_player} = Game.spawn_player(player.id, player.spawn_room_id)
             updated_player
           else
             player
@@ -179,8 +179,13 @@ defmodule Realms.PlayerServer do
           exclude: self()
         )
 
-        send_welcome_banner(state.player_id)
-        Commands.parse_and_execute("look", %{player_id: state.player_id})
+        if Application.get_env(:realms, :show_welcome_banner, true) do
+          send_welcome_banner(state.player_id)
+        end
+
+        if Application.get_env(:realms, :auto_look_on_join, true) do
+          Commands.parse_and_execute("look", %{player_id: state.player_id})
+        end
 
         Logger.info("PlayerServer started for player #{player_id}")
 
@@ -230,8 +235,13 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_cast({:handle_input, input}, state) do
-    command_echo = Message.new([{:pre_wrap, [{:color, :gray_dark, ["> #{input}"]}]}])
-    state = append_to_history_and_send_to_views(state, command_echo)
+    state =
+      if Application.get_env(:realms, :echo_commands, true) do
+        command_echo = Message.new([{:pre_wrap, [{:color, :gray_dark, ["> #{input}"]}]}])
+        append_to_history_and_send_to_views(state, command_echo)
+      else
+        state
+      end
 
     case Commands.parse_and_execute(input, %{player_id: state.player_id}) do
       :ok ->

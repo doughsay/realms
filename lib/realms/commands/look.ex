@@ -5,25 +5,26 @@ defmodule Realms.Commands.Look do
 
   @behaviour Realms.Commands.Command
 
+  alias Realms.Commands.Command
   alias Realms.Game
   alias Realms.Messaging
 
   defstruct []
 
-  @impl true
+  @impl Command
   def parse("look"), do: {:ok, %__MODULE__{}}
   def parse(_), do: :error
 
-  @impl true
+  @impl Command
   def execute(%__MODULE__{}, context) do
-    player = Game.get_player!(context.player_id)
-    room = player.current_room
-
-    other_players =
-      Game.players_in_room(room.id)
-      |> Enum.reject(&(&1.id == context.player_id))
-
-    exits = Game.list_exits_from_room(room.id)
+    {:ok,
+     %{
+       player: player,
+       room: room,
+       other_players: other_players,
+       exits: exits,
+       items: items
+     }} = fetch(context)
 
     Messaging.send_to_player(
       player.id,
@@ -31,20 +32,54 @@ defmodule Realms.Commands.Look do
       <bright-yellow:b>#{room.name}</>
       <white>#{room.description}</>
 
-      #{format_exits_section(exits)}#{format_players_section(other_players)}
+      #{format_exits_section(exits)}#{format_items_section(items)}#{format_players_section(other_players)}
       """
     )
 
     :ok
   end
 
-  @impl true
+  @impl Command
   def description, do: "Show current room description"
 
-  @impl true
+  @impl Command
   def examples, do: ["look"]
 
   # Private helpers
+
+  defp fetch(context) do
+    Game.tx(fn ->
+      player = Game.get_player!(context.player_id)
+      room = Game.get_room!(player.current_room_id)
+
+      other_players =
+        Game.players_in_room(room.id)
+        |> Enum.reject(&(&1.id == context.player_id))
+
+      exits = Game.list_exits_from_room(room.id)
+      items = Game.list_items_in_room(room)
+
+      {:ok,
+       %{
+         player: player,
+         room: room,
+         other_players: other_players,
+         exits: exits,
+         items: items
+       }}
+    end)
+  end
+
+  defp format_items_section([]), do: ""
+
+  defp format_items_section(items) do
+    item_lines =
+      Enum.map_join(items, "", fn item ->
+        "\n<gray>• </><bright-cyan>#{item.name}</> is here."
+      end)
+
+    "\n<gray>Items:</>" <> item_lines <> "\n"
+  end
 
   defp format_exits_section([]) do
     "<gray>Obvious exits: </><gray-light>none</>\n"

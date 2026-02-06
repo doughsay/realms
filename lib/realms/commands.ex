@@ -7,7 +7,26 @@ defmodule Realms.Commands do
   """
 
   alias Realms.Commands.Command
-  alias Realms.Commands.{Look, Help, Exits, Say, Move, Crash, Hang, Clear, Banner, Tell}
+
+  alias Realms.Commands.{
+    Look,
+    Inventory,
+    GetFrom,
+    Get,
+    Drop,
+    Put,
+    Examine,
+    Help,
+    Exits,
+    Say,
+    Move,
+    Crash,
+    Hang,
+    Clear,
+    Banner,
+    Tell
+  }
+
   alias Realms.Messaging
 
   require Logger
@@ -17,7 +36,25 @@ defmodule Realms.Commands do
   @type command_context :: %{player_id: binary()}
 
   # Commands in priority order - first match wins
-  @commands [Look, Help, Exits, Say, Move, Crash, Hang, Clear, Banner, Tell]
+
+  @commands [
+    Look,
+    Inventory,
+    GetFrom,
+    Get,
+    Drop,
+    Put,
+    Examine,
+    Help,
+    Exits,
+    Say,
+    Move,
+    Crash,
+    Hang,
+    Clear,
+    Banner,
+    Tell
+  ]
 
   @doc """
   Parses and executes a player input string in the given context.
@@ -68,18 +105,12 @@ defmodule Realms.Commands do
           module.execute(command, context)
         rescue
           error ->
-            Logger.error("""
-            Command execution failed: #{inspect(module)}
-            Error: #{Exception.format(:error, error, __STACKTRACE__)}
-            Context: #{inspect(context)}
-            """)
-
             Messaging.send_to_player(
               context.player_id,
               "<red:b>Command error:</> An error occurred while executing that command."
             )
 
-            :ok
+            reraise error, __STACKTRACE__
         end
       end)
 

@@ -14,15 +14,30 @@ defmodule Realms.GameFixtures do
   end
 
   @doc """
+  Get or create the Town Square room.
+  """
+  def town_square_fixture do
+    case Game.fetch_room_by_name("Town Square") do
+      {:error, :room_not_found} ->
+        {:ok, room} =
+          Game.create_room(%{
+            name: "Town Square",
+            description: "A bustling town square."
+          })
+
+        room
+
+      {:ok, room} ->
+        room
+    end
+  end
+
+  @doc """
   Generate a player for a given user.
   Requires a Town Square room to exist.
   """
   def player_fixture(user, attrs \\ %{}) do
-    town_square = Game.get_room_by_name("Town Square")
-
-    if is_nil(town_square) do
-      raise "Town Square room must exist to create player fixtures"
-    end
+    town_square = town_square_fixture()
 
     attrs =
       attrs
@@ -35,5 +50,56 @@ defmodule Realms.GameFixtures do
 
     {:ok, player} = Game.create_player(attrs)
     player
+  end
+
+  @doc """
+  Generate a unique item name.
+  """
+  def unique_item_name do
+    "item#{System.unique_integer([:positive])}"
+  end
+
+  @doc """
+  Generate an item.
+  """
+  def item_fixture(attrs \\ %{}) do
+    attrs =
+      attrs
+      |> Enum.into(%{
+        name: unique_item_name(),
+        description: "A simple item."
+      })
+
+    {:ok, item} = Game.create_item(attrs)
+    item
+  end
+
+  @doc """
+  Generate a room.
+  """
+  def room_fixture(attrs \\ %{}) do
+    attrs =
+      attrs
+      |> Enum.into(%{
+        name: "Room #{System.unique_integer([:positive])}",
+        description: "A generic room."
+      })
+
+    {:ok, room} = Game.create_room(attrs)
+    room
+  end
+
+  @doc """
+  Create an exit between two rooms.
+  """
+  def exit_fixture(from_room, to_room, direction) do
+    {:ok, exit} =
+      Game.create_exit(%{
+        from_room_id: from_room.id,
+        to_room_id: to_room.id,
+        direction: direction
+      })
+
+    exit
   end
 end
