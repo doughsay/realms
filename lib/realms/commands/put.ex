@@ -83,7 +83,8 @@ defmodule Realms.Commands.Put do
       player = Game.get_player!(player_id)
 
       with {:ok, item} <- find_held_item(player.inventory_id, item_name, :item_not_found),
-           {:ok, container} <- find_held_item(player.inventory_id, container_name, :container_not_found),
+           {:ok, container} <-
+             find_held_item(player.inventory_id, container_name, :container_not_found),
            :ok <- check_distinct(item, container),
            :ok <- check_is_container(container),
            {:ok, _} <- Game.move_item_to_item(item, container) do

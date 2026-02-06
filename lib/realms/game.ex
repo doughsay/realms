@@ -158,6 +158,17 @@ defmodule Realms.Game do
     end
   end
 
+  @doc """
+  Fetches the inventory ID associated with a container item.
+  Returns {:ok, inventory_id} if the item is a container, {:error, :not_a_container} otherwise.
+  """
+  def fetch_container_inventory_id(%Item{} = container) do
+    case Repo.get_by(ItemContent, item_id: container.id) do
+      nil -> {:error, :not_a_container}
+      %ItemContent{inventory_id: inventory_id} -> {:ok, inventory_id}
+    end
+  end
+
   # Room functions
 
   @doc """
@@ -495,7 +506,7 @@ defmodule Realms.Game do
         delay_ms = base_delay + jitter
 
         Logger.warning(
-          "Transaction failed with serialization error. Retrying... (attempt #{attempt + 1}/#{max_retries}) Delay: #{delay_ms}ms"
+          "Transaction failed with serialization failure. Retrying... (attempt #{attempt + 1}/#{max_retries}) Delay: #{delay_ms}ms"
         )
 
         Process.sleep(delay_ms)
