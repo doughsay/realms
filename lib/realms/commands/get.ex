@@ -52,7 +52,7 @@ defmodule Realms.Commands.Get do
       items = Game.list_items_in_room(room)
 
       with {:ok, item} <- Utils.match_item(items, search_term) do
-        {:ok, _} = Game.move_item_to_player(item, player.inventory_id)
+        {:ok, _} = Game.move_item_to_player(item, player)
         {:ok, %{player: player, room: room, item: item}}
       end
     end)

@@ -27,8 +27,25 @@ defmodule RealmsWeb.GameTestHelpers do
   @doc """
   Asserts that the view eventually contains the expected content.
   """
-  def assert_eventual_output(view, expected_content, timeout \\ 1000) do
-    assert eventually(fn -> render(view) =~ html_escape(expected_content) end, timeout)
+  def assert_eventual_output(view, expected_content, timeout \\ 100) do
+    interval = 20
+    tries = div(timeout, interval)
+
+    assert eventually(
+             fn ->
+               rendered = render(view)
+
+               text_content =
+                 rendered
+                 |> LazyHTML.from_fragment()
+                 |> LazyHTML.text()
+
+               text_content =~ expected_content
+             end,
+             tries,
+             interval
+           )
+
     view
   end
 
@@ -50,13 +67,18 @@ defmodule RealmsWeb.GameTestHelpers do
 
   @doc """
   Connects a player to the game LiveView.
-  Returns `{:ok, view, html}`.
+  Returns `%{user: user, player: player, view: view}`.
   """
   def connect_player(user, player) do
-    Phoenix.ConnTest.build_conn()
-    |> log_in_user(user)
-    |> select_player(player)
-    |> live(~p"/")
+    Realms.Game.set_player_status(player.id, :online)
+
+    {:ok, view, _html} =
+      Phoenix.ConnTest.build_conn()
+      |> log_in_user(user)
+      |> select_player(player)
+      |> live(~p"/")
+
+    %{user: user, player: player, view: view}
   end
 
   @doc """
@@ -69,13 +91,13 @@ defmodule RealmsWeb.GameTestHelpers do
     - :player (optional) - Use existing player instead of creating new one
     - :player_attrs (optional) - Additional attributes for player_fixture/2
 
-  Returns: {:ok, view, html} just like the 2-arg version
+  Returns: `%{user: user, player: player, view: view}`
 
   ## Examples
 
-      {:ok, view, _} = connect_player(room: room)
-      {:ok, view, _} = connect_player(room: room, name: "Bob")
-      {:ok, view, _} = connect_player(user: user, room: room)
+      %{view: view} = connect_player(room: room)
+      %{player: player, view: view} = connect_player(room: room, name: "Bob")
+      %{view: view} = connect_player(user: user, room: room)
   """
   def connect_player(opts) when is_list(opts) do
     room = Keyword.fetch!(opts, :room)
@@ -109,20 +131,21 @@ defmodule RealmsWeb.GameTestHelpers do
 
   Takes a list of option keyword lists (same format as connect_player/1).
 
-  Returns: List of views (without html, for cleaner destructuring)
+  Returns: List of `%{user: user, player: player, view: view}` maps
 
   ## Examples
 
-      [view1, view2] = connect_players([
+      # Just get views
+      [%{view: view1}, %{view: view2}] = connect_players([
         [room: start_room],
         [room: dest_room, name: "Bob"]
       ])
+
+      # Get specific fields
+      [%{player: p1, view: v1}, %{player: p2, view: v2}] = connect_players([...])
   """
   def connect_players(players_opts) when is_list(players_opts) do
-    Enum.map(players_opts, fn opts ->
-      {:ok, view, _html} = connect_player(opts)
-      view
-    end)
+    Enum.map(players_opts, &connect_player/1)
   end
 
   @doc """
@@ -175,5 +198,115 @@ defmodule RealmsWeb.GameTestHelpers do
       |> Enum.map_join("\n", &LazyHTML.text/1)
 
     IO.puts(messages)
+  end
+
+  @doc """
+  Creates an item in a room's inventory.
+
+  Options:
+    - :name (optional) - Item name, defaults to unique generated name
+    - :description (optional) - Item description
+    - :is_container (optional) - Make it a container, default false
+    - Other item_fixture attributes
+
+  Returns: item struct
+
+  ## Examples
+
+      item = create_item_in_room(room, name: "apple")
+      container = create_item_in_room(room, name: "backpack", is_container: true)
+  """
+  def create_item_in_room(room, opts \\ []) do
+    is_container = Keyword.get(opts, :is_container, false)
+    opts = Keyword.delete(opts, :is_container)
+
+    attrs =
+      opts
+      |> Map.new()
+      |> Map.put(:location_id, room.inventory_id)
+      |> Map.put_new(:name, "item_#{System.unique_integer([:positive])}")
+      |> Map.put_new(:description, "A simple item.")
+
+    {:ok, item} = Realms.Game.create_item(attrs, has_inventory: is_container)
+    item
+  end
+
+  @doc """
+  Creates an item in a player's inventory.
+
+  Options: Same as create_item_in_room
+
+  Returns: item struct
+
+  ## Examples
+
+      item = create_item_in_inventory(player, name: "sword")
+  """
+  def create_item_in_inventory(player, opts \\ []) do
+    is_container = Keyword.get(opts, :is_container, false)
+    opts = Keyword.delete(opts, :is_container)
+
+    attrs =
+      opts
+      |> Map.new()
+      |> Map.put(:location_id, player.inventory_id)
+      |> Map.put_new(:name, "item_#{System.unique_integer([:positive])}")
+      |> Map.put_new(:description, "A simple item.")
+
+    {:ok, item} = Realms.Game.create_item(attrs, has_inventory: is_container)
+    item
+  end
+
+  @doc """
+  Asserts that text does NOT appear in view output.
+
+  Waits for the timeout period to let any async operations complete,
+  then asserts the text is not present.
+
+  Uses LazyHTML to extract text content, matching across multiple HTML elements.
+
+  Returns: view (for chaining)
+
+  ## Examples
+
+      view
+      |> send_command("say hello")
+      |> assert_no_output("hello")  # Sender shouldn't see own message echoed
+  """
+  def assert_no_output(view, text, timeout \\ 100) do
+    Process.sleep(timeout)
+
+    rendered = render(view)
+
+    text_content =
+      rendered
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.text()
+
+    refute text_content =~ text,
+           "Expected text '#{text}' to NOT be present, but it was found in output"
+
+    view
+  end
+
+  @doc """
+  Verifies an item is in the expected location by querying fresh from DB.
+
+  Returns: item struct
+
+  ## Examples
+
+      assert_item_in_location(apple.id, player.inventory_id)
+      assert_item_in_location(sword.id, backpack.inventory_id)
+  """
+  def assert_item_in_location(item_id, expected_location_id) do
+    item = Realms.Repo.get!(Realms.Game.Item, item_id)
+
+    assert item.location_id == expected_location_id, """
+    Expected item #{item_id} to be in location #{expected_location_id},
+    but found it in location #{item.location_id}
+    """
+
+    item
   end
 end

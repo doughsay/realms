@@ -63,7 +63,7 @@ defmodule Realms.Commands.Examine do
     end)
   end
 
-  defp format_contents([]), do: ""
+  defp format_contents([]), do: "\n<white>It is empty.</>"
 
   defp format_contents(items) do
     item_list =

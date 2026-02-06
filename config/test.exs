@@ -40,10 +40,11 @@ config :realms, RealmsWeb.Endpoint,
   secret_key_base: "Z/J2awuXb/i8D+a7wQjjFbtJYxH87uxOdl7Kowql/XFUUJN5xfN2eJnLmRaU2VLH",
   server: false
 
-# Disable welcome banner & auto-look on join for tests
+# Disable welcome banner, auto-look on join, and command echo for tests
 config :realms,
   show_welcome_banner: false,
-  auto_look_on_join: false
+  auto_look_on_join: false,
+  echo_commands: false
 
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false

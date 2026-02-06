@@ -45,7 +45,7 @@ defmodule Realms.Commands.Put do
 
         Messaging.send_to_room(
           player.current_room_id,
-          "<yellow>#{player.name}</> puts something into <cyan>#{container.name}</>.",
+          "<yellow>#{player.name}</> puts <cyan>#{item.name}</> into <cyan>#{container.name}</>.",
           exclude: player.id
         )
 

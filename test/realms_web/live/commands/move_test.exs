@@ -32,7 +32,7 @@ defmodule RealmsWeb.Live.Commands.MoveTest do
     end
 
     test "fails to move in invalid direction", %{player: player, user: user} do
-      {:ok, view, _html} = connect_player(user, player)
+      %{view: view} = connect_player(user, player)
 
       view
       |> send_command("south")
@@ -47,9 +47,9 @@ defmodule RealmsWeb.Live.Commands.MoveTest do
       destination_room = room_fixture()
       exit_fixture(start_room, destination_room, "east")
 
-      {:ok, view, _html} = connect_player(user, player)
+      %{view: view} = connect_player(user, player)
 
-      [observer_view, dest_observer_view] =
+      [%{view: observer_view}, %{view: dest_observer_view}] =
         connect_players([
           [room: start_room],
           [room: destination_room]

@@ -235,8 +235,13 @@ defmodule Realms.PlayerServer do
 
   @impl true
   def handle_cast({:handle_input, input}, state) do
-    command_echo = Message.new([{:pre_wrap, [{:color, :gray_dark, ["> #{input}"]}]}])
-    state = append_to_history_and_send_to_views(state, command_echo)
+    state =
+      if Application.get_env(:realms, :echo_commands, true) do
+        command_echo = Message.new([{:pre_wrap, [{:color, :gray_dark, ["> #{input}"]}]}])
+        append_to_history_and_send_to_views(state, command_echo)
+      else
+        state
+      end
 
     case Commands.parse_and_execute(input, %{player_id: state.player_id}) do
       :ok ->
