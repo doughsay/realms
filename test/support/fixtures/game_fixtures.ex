@@ -51,4 +51,26 @@ defmodule Realms.GameFixtures do
     {:ok, player} = Game.create_player(attrs)
     player
   end
+
+  @doc """
+  Generate a unique item name.
+  """
+  def unique_item_name do
+    "item#{System.unique_integer([:positive])}"
+  end
+
+  @doc """
+  Generate an item.
+  """
+  def item_fixture(attrs \\ %{}) do
+    attrs =
+      attrs
+      |> Enum.into(%{
+        name: unique_item_name(),
+        description: "A simple item."
+      })
+
+    {:ok, item} = Game.create_item(attrs)
+    item
+  end
 end

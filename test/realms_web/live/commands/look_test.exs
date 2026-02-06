@@ -26,5 +26,26 @@ defmodule RealmsWeb.Live.Commands.LookTest do
       |> assert_eventual_output(room.name)
       |> assert_eventual_output(room.description)
     end
+
+    test "shows other players in the room", %{conn: conn} do
+      other_user = user_fixture()
+      other_player = player_fixture(other_user)
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view
+      |> send_command("look")
+      |> assert_eventual_output(other_player.name)
+    end
+
+    test "shows items in the room", %{conn: conn, room: room} do
+      item = item_fixture(%{location_id: room.inventory_id})
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view
+      |> send_command("look")
+      |> assert_eventual_output(item.name)
+    end
   end
 end
