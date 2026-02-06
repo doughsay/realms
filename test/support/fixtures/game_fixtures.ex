@@ -73,4 +73,33 @@ defmodule Realms.GameFixtures do
     {:ok, item} = Game.create_item(attrs)
     item
   end
+
+  @doc """
+  Generate a room.
+  """
+  def room_fixture(attrs \\ %{}) do
+    attrs =
+      attrs
+      |> Enum.into(%{
+        name: "Room #{System.unique_integer([:positive])}",
+        description: "A generic room."
+      })
+
+    {:ok, room} = Game.create_room(attrs)
+    room
+  end
+
+  @doc """
+  Create an exit between two rooms.
+  """
+  def exit_fixture(from_room, to_room, direction) do
+    {:ok, exit} =
+      Game.create_exit(%{
+        from_room_id: from_room.id,
+        to_room_id: to_room.id,
+        direction: direction
+      })
+
+    exit
+  end
 end

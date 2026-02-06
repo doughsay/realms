@@ -27,9 +27,8 @@ defmodule RealmsWeb.Live.Commands.LookTest do
       |> assert_eventual_output(room.description)
     end
 
-    test "shows other players in the room", %{conn: conn} do
-      other_user = user_fixture()
-      other_player = player_fixture(other_user)
+    test "shows other players in the room", %{conn: conn, room: room} do
+      %{player: other_player} = create_player(room: room)
 
       {:ok, view, _html} = live(conn, ~p"/")
 

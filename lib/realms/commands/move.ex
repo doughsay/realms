@@ -25,7 +25,7 @@ defmodule Realms.Commands.Move do
   @impl Command
   def execute(%__MODULE__{direction: direction}, context) do
     case move_player(context.player_id, direction) do
-      {:ok, player, new_room, old_room_id} ->
+      {:ok, {player, new_room, old_room_id}} ->
         PlayerServer.change_room_subscription(context.player_id, old_room_id, new_room.id)
 
         # Departure message to old room
@@ -69,7 +69,7 @@ defmodule Realms.Commands.Move do
 
       case Game.move_player(player, direction) do
         {:ok, new_room} ->
-          {:ok, player, new_room, old_room_id}
+          {:ok, {player, new_room, old_room_id}}
 
         {:error, :no_exit} ->
           {:error, :no_exit}
