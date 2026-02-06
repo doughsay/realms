@@ -52,7 +52,8 @@ defmodule Realms.Messaging.Banner do
   # Proper noun. This is your anchor. It acts as the subject of the description.
   defp random_e_word do
     Enum.random([
-      "Elixir"
+      "Elixir",
+      "Erlang"
     ])
     |> bold_first_letter()
   end
@@ -85,7 +86,10 @@ defmodule Realms.Messaging.Banner do
   # Noun. This defines the genre.
   defp random_m_word do
     Enum.random([
-      "MUD"
+      "MMO",
+      "MUD",
+      "Multi-user",
+      "Multiplayer"
     ])
     |> bold_first_letter()
   end
