@@ -25,6 +25,7 @@ defmodule RealmsWeb.ConnCase do
       import Phoenix.ConnTest
       import Plug.Conn
       import RealmsWeb.ConnCase
+      import RealmsWeb.GameTestHelpers
       # The default endpoint for testing
       @endpoint RealmsWeb.Endpoint
 

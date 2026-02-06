@@ -179,8 +179,13 @@ defmodule Realms.PlayerServer do
           exclude: self()
         )
 
-        send_welcome_banner(state.player_id)
-        Commands.parse_and_execute("look", %{player_id: state.player_id})
+        if Application.get_env(:realms, :show_welcome_banner, true) do
+          send_welcome_banner(state.player_id)
+        end
+
+        if Application.get_env(:realms, :auto_look_on_join, true) do
+          Commands.parse_and_execute("look", %{player_id: state.player_id})
+        end
 
         Logger.info("PlayerServer started for player #{player_id}")
 

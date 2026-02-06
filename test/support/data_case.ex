@@ -35,16 +35,36 @@ defmodule Realms.DataCase do
 
   @doc """
   Sets up the database by truncating tables.
-
-  NOTE: Any new tables added to the application must be included in the TRUNCATE
-  statement for this function to work properly.
   """
   def setup_db(_tags) do
-    Ecto.Adapters.SQL.query!(
-      Realms.Repo,
-      "TRUNCATE users, users_tokens, rooms, exits, players, items, inventories, item_contents CASCADE"
-    )
+    cleanup_processes()
+    truncate_tables()
+  end
 
+  defp cleanup_processes do
+    # Gracefully terminate all running command tasks
+    for {_, pid, _, _} <- Task.Supervisor.children(Realms.CommandSupervisor) do
+      Task.Supervisor.terminate_child(Realms.CommandSupervisor, pid)
+    end
+
+    # Gracefully terminate all running player servers
+    for {_, pid, _, _} <- DynamicSupervisor.which_children(Realms.PlayerSupervisor) do
+      DynamicSupervisor.terminate_child(Realms.PlayerSupervisor, pid)
+    end
+
+    # Wait for shutdowns to propagate to ensure locks are released
+    Liveness.eventually(
+      fn ->
+        Task.Supervisor.children(Realms.CommandSupervisor) == [] and
+          DynamicSupervisor.which_children(Realms.PlayerSupervisor) == []
+      end,
+      1000
+    )
+  end
+
+  defp truncate_tables do
+    tables = "users, users_tokens, rooms, exits, players, items, inventories, item_contents"
+    Realms.Repo.query!("TRUNCATE #{tables} CASCADE")
     :ok
   end
 

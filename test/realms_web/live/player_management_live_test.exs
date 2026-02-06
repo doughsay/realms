@@ -1,5 +1,5 @@
 defmodule RealmsWeb.PlayerManagementLiveTest do
-  use RealmsWeb.ConnCase
+  use RealmsWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
   import Realms.AccountsFixtures
