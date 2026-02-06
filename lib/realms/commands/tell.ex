@@ -28,21 +28,29 @@ defmodule Realms.Commands.Tell do
   def parse(_), do: :error
 
   @impl true
-  def execute(%__MODULE__{target: target, message: message}, context) do
-    myself = context.player_id
-
-    case Game.online_players_by_name_prefix(target) do
-      [player] ->
-        Messaging.send_to_player(player.id, message)
-        Messaging.send_to_player(myself, message)
-
-      [] ->
-        Messaging.send_to_player(myself, "Cannot find \"#{target}\" online")
-
-      _ ->
+  def execute(%__MODULE__{target: target_name, message: message}, context) do
+    case resolve_target(context.player_id, target_name) do
+      {:ok, %{sender: sender, target: target}} ->
         Messaging.send_to_player(
-          myself,
-          "Multiple matching players. You'll have to be more specific."
+          target.id,
+          "<bright-cyan>#{sender.name}</><gray> tells you: </><white>#{message}</>"
+        )
+
+        Messaging.send_to_player(
+          sender.id,
+          "<gray>You tell </><bright-cyan>#{target.name}</><gray>: </><white>#{message}</>"
+        )
+
+      {:error, :not_found} ->
+        Messaging.send_to_player(
+          context.player_id,
+          "<red>Cannot find \"#{target_name}\" online.</>"
+        )
+
+      {:error, :ambiguous} ->
+        Messaging.send_to_player(
+          context.player_id,
+          "<red>Multiple matching players. You'll have to be more specific.</>"
         )
     end
 
@@ -54,4 +62,18 @@ defmodule Realms.Commands.Tell do
 
   @impl true
   def examples, do: ["tell barfos meet at the tavern", "tell shopkeep deals please"]
+
+  # Private helpers
+
+  defp resolve_target(player_id, target_name) do
+    Game.tx(fn ->
+      sender = Game.get_player!(player_id)
+
+      case Game.online_players_by_name_prefix(target_name) do
+        [target] -> {:ok, %{sender: sender, target: target}}
+        [] -> {:error, :not_found}
+        _ -> {:error, :ambiguous}
+      end
+    end)
+  end
 end
