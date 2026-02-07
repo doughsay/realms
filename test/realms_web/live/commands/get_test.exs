@@ -56,16 +56,20 @@ defmodule RealmsWeb.Commands.GetTest do
       |> assert_eventual_output("don't see")
     end
 
-    test "shows error when multiple items match search term" do
+    test "gets first item alphabetically when multiple items match" do
       room = room_fixture()
-      %{view: view} = connect_player(room: room, name: "Alice")
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
 
-      create_item_in_room(room, name: "short sword")
-      create_item_in_room(room, name: "long sword")
+      short_sword = create_item_in_room(room, name: "short sword")
+      long_sword = create_item_in_room(room, name: "long sword")
 
       view
       |> send_command("get sword")
-      |> assert_eventual_output("Multiple items match 'sword'. Be more specific.")
+      |> assert_eventual_output("You pick up long sword.")
+
+      # Verify long sword is in inventory, short sword still in room
+      assert_item_in_location(long_sword.id, player.inventory_id)
+      assert_item_in_location(short_sword.id, room.inventory_id)
     end
 
     test "can match items using multiple words at start of name" do

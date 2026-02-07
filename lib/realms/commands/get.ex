@@ -31,12 +31,6 @@ defmodule Realms.Commands.Get do
 
       {:error, :no_matching_item} ->
         Messaging.send_to_player(context.player_id, "<red>You don't see '#{name}' here.</>")
-
-      {:error, :ambiguous} ->
-        Messaging.send_to_player(
-          context.player_id,
-          "<red>Multiple items match '#{name}'. Be more specific.</>"
-        )
     end
 
     :ok
@@ -55,7 +49,7 @@ defmodule Realms.Commands.Get do
       player = Game.get_player!(player_id)
       room = Game.get_room!(player.current_room_id)
 
-      with {:ok, item} <- Game.find_item_in_inventory(room.inventory_id, search_term) do
+      with {:ok, [item | _]} <- Game.find_item_in_inventory(room.inventory_id, search_term) do
         {:ok, _} = Game.move_item_to_player(item, player)
         {:ok, %{player: player, room: room, item: item}}
       end

@@ -36,12 +36,6 @@ defmodule Realms.Commands.Examine do
 
       {:error, :no_matching_item} ->
         Messaging.send_to_player(context.player_id, "<red>You don't see '#{name}' here.</>")
-
-      {:error, :ambiguous} ->
-        Messaging.send_to_player(
-          context.player_id,
-          "<red>Multiple items match '#{name}'. Be more specific.</>"
-        )
     end
 
     :ok
@@ -59,7 +53,7 @@ defmodule Realms.Commands.Examine do
       room = Game.get_room!(player.current_room_id)
 
       # Search both player inventory and room at once
-      with {:ok, item} <-
+      with {:ok, [item | _]} <-
              Game.find_item_in_inventories([player.inventory_id, room.inventory_id], name) do
         case Game.list_items_in_item(item) do
           {:ok, contents} -> {:ok, %{item: item, contents: contents}}

@@ -75,30 +75,32 @@ defmodule RealmsWeb.Commands.ExamineTest do
       |> assert_eventual_output("It is empty.")
     end
 
-    test "shows error when multiple items match search term in same location" do
+    test "examines first item alphabetically when multiple items match" do
       room = room_fixture()
       %{player: player, view: view} = connect_player(room: room, name: "Alice")
 
-      # Both in inventory - ambiguous
-      create_item_in_inventory(player, name: "red gem")
-      create_item_in_inventory(player, name: "blue gem")
+      # Both in inventory - should pick first alphabetically
+      create_item_in_inventory(player, name: "red gem", description: "A sparkling red gem")
+      create_item_in_inventory(player, name: "blue gem", description: "A brilliant blue gem")
 
       view
       |> send_command("examine gem")
-      |> assert_eventual_output("Multiple items match 'gem'. Be more specific.")
+      |> assert_eventual_output("blue gem")
+      |> assert_eventual_output("brilliant blue gem")
     end
 
-    test "shows error when multiple items match across player and room" do
+    test "examines first item alphabetically when multiple items match across player and room" do
       room = room_fixture()
       %{player: player, view: view} = connect_player(room: room, name: "Alice")
 
-      # One in inventory, one in room - still ambiguous across both locations
-      create_item_in_inventory(player, name: "small gem")
-      create_item_in_room(room, name: "large gem")
+      # One in inventory, one in room - should pick first alphabetically
+      create_item_in_inventory(player, name: "small gem", description: "A tiny gem")
+      create_item_in_room(room, name: "large gem", description: "A huge gem")
 
       view
       |> send_command("examine gem")
-      |> assert_eventual_output("Multiple items match 'gem'. Be more specific.")
+      |> assert_eventual_output("large gem")
+      |> assert_eventual_output("huge gem")
     end
 
     test "does not show container messages for non-container items" do

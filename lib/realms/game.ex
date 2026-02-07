@@ -90,37 +90,35 @@ defmodule Realms.Game do
   end
 
   @doc """
-  Finds a single item in an inventory by matching the search term against
+  Finds items in an inventory by matching the search term against
   word prefixes in the item's name. Case-insensitive.
 
-  Returns {:ok, item} if exactly one match found,
-  {:error, :no_matching_item} if no matches,
-  {:error, :ambiguous} if multiple matches.
+  Returns {:ok, [items]} if one or more matches found (ordered alphabetically by name),
+  {:error, :no_matching_item} if no matches.
 
   ## Examples
 
       find_item_in_inventory(inventory_id, "sw")
       # Matches "rusty iron sword" (matches "sword")
       # Matches "swift dagger" (matches "swift")
-      # Returns {:error, :ambiguous} if both exist
+      # Returns {:ok, [sword, dagger]} (alphabetically ordered)
   """
   def find_item_in_inventory(inventory_id, search_term) do
     find_item_in_inventories([inventory_id], search_term)
   end
 
   @doc """
-  Finds a single item across multiple inventories by matching the search term
+  Finds items across multiple inventories by matching the search term
   against word prefixes in the item's name. Case-insensitive.
 
-  Returns {:ok, item} if exactly one match found across all inventories,
-  {:error, :no_matching_item} if no matches,
-  {:error, :ambiguous} if multiple matches.
+  Returns {:ok, [items]} if one or more matches found across all inventories (ordered alphabetically by name),
+  {:error, :no_matching_item} if no matches.
 
   ## Examples
 
       find_item_in_inventories([player_inv_id, room_inv_id], "sw")
       # Searches both player inventory and room inventory
-      # Returns the item if exactly one match across both
+      # Returns {:ok, [items]} with all matches across both, ordered alphabetically
   """
   def find_item_in_inventories(inventory_ids, search_term) when is_list(inventory_ids) do
     search_term = String.downcase(search_term)
@@ -136,11 +134,11 @@ defmodule Realms.Game do
       [i],
       ilike(i.name, ^start_pattern) or ilike(i.name, ^word_pattern)
     )
+    |> order_by([i], asc: i.name)
     |> Repo.all()
     |> case do
       [] -> {:error, :no_matching_item}
-      [item] -> {:ok, item}
-      _multiple -> {:error, :ambiguous}
+      items -> {:ok, items}
     end
   end
 

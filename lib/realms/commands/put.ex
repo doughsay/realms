@@ -51,22 +51,10 @@ defmodule Realms.Commands.Put do
       {:error, :item_not_found} ->
         Messaging.send_to_player(context.player_id, "<red>You aren't holding '#{item_name}'.</>")
 
-      {:error, :item_ambiguous} ->
-        Messaging.send_to_player(
-          context.player_id,
-          "<red>Multiple items match '#{item_name}'. Be more specific.</>"
-        )
-
       {:error, :container_not_found} ->
         Messaging.send_to_player(
           context.player_id,
           "<red>You aren't holding '#{container_name}'.</>"
-        )
-
-      {:error, :container_ambiguous} ->
-        Messaging.send_to_player(
-          context.player_id,
-          "<red>Multiple items match '#{container_name}'. Be more specific.</>"
         )
 
       {:error, :self_containment} ->
@@ -106,17 +94,15 @@ defmodule Realms.Commands.Put do
 
   defp find_item(inventory_id, name) do
     case Game.find_item_in_inventory(inventory_id, name) do
-      {:ok, item} -> {:ok, item}
+      {:ok, [item | _]} -> {:ok, item}
       {:error, :no_matching_item} -> {:error, :item_not_found}
-      {:error, :ambiguous} -> {:error, :item_ambiguous}
     end
   end
 
   defp find_container(inventory_id, name) do
     case Game.find_item_in_inventory(inventory_id, name) do
-      {:ok, item} -> {:ok, item}
+      {:ok, [item | _]} -> {:ok, item}
       {:error, :no_matching_item} -> {:error, :container_not_found}
-      {:error, :ambiguous} -> {:error, :container_ambiguous}
     end
   end
 

@@ -85,30 +85,38 @@ defmodule RealmsWeb.Commands.PutTest do
       assert_eventual_output(player2_view, "Alice puts gem into pouch.")
     end
 
-    test "shows error when multiple items match search term" do
+    test "puts first item alphabetically when multiple items match" do
       room = room_fixture()
       %{player: player, view: view} = connect_player(room: room, name: "Alice")
 
-      create_item_in_inventory(player, name: "red gem")
-      create_item_in_inventory(player, name: "blue gem")
-      create_item_in_inventory(player, name: "backpack", is_container: true)
+      red_gem = create_item_in_inventory(player, name: "red gem")
+      blue_gem = create_item_in_inventory(player, name: "blue gem")
+      backpack = create_item_in_inventory(player, name: "backpack", is_container: true)
+      backpack_inv_id = Realms.Game.get_container_inventory_id(backpack)
 
       view
       |> send_command("put gem in backpack")
-      |> assert_eventual_output("Multiple items match 'gem'. Be more specific.")
+      |> assert_eventual_output("You put blue gem into backpack.")
+
+      # Verify blue gem is in backpack, red gem still in inventory
+      assert_item_in_location(blue_gem.id, backpack_inv_id)
+      assert_item_in_location(red_gem.id, player.inventory_id)
     end
 
-    test "shows error when multiple containers match search term" do
+    test "uses first container alphabetically when multiple containers match" do
       room = room_fixture()
       %{player: player, view: view} = connect_player(room: room, name: "Alice")
 
-      create_item_in_inventory(player, name: "apple")
-      create_item_in_inventory(player, name: "small pouch", is_container: true)
-      create_item_in_inventory(player, name: "large pouch", is_container: true)
+      apple = create_item_in_inventory(player, name: "apple")
+      _small_pouch = create_item_in_inventory(player, name: "small pouch", is_container: true)
+      large_pouch = create_item_in_inventory(player, name: "large pouch", is_container: true)
+      large_pouch_inv_id = Realms.Game.get_container_inventory_id(large_pouch)
 
       view
       |> send_command("put apple in pouch")
-      |> assert_eventual_output("Multiple items match 'pouch'. Be more specific.")
+      |> assert_eventual_output("You put apple into large pouch.")
+
+      assert_item_in_location(apple.id, large_pouch_inv_id)
     end
   end
 end
