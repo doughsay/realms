@@ -99,5 +99,33 @@ defmodule RealmsWeb.Commands.GetTest do
 
       assert_item_in_location(ancient_sword.id, player.inventory_id)
     end
+
+    test "matches items case-insensitively" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      sword = create_item_in_room(room, name: "Shiny Steel Sword")
+
+      # Test with all lowercase
+      view
+      |> send_command("get shiny")
+      |> assert_eventual_output("You pick up Shiny Steel Sword")
+
+      assert_item_in_location(sword.id, player.inventory_id)
+    end
+
+    test "matches items case-insensitively with uppercase search" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      sword = create_item_in_room(room, name: "rusty old sword")
+
+      # Test with all uppercase
+      view
+      |> send_command("get RUSTY")
+      |> assert_eventual_output("You pick up rusty old sword")
+
+      assert_item_in_location(sword.id, player.inventory_id)
+    end
   end
 end

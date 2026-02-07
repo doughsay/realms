@@ -121,8 +121,6 @@ defmodule Realms.Game do
       # Returns {:ok, [items]} with all matches across both, ordered alphabetically
   """
   def find_item_in_inventories(inventory_ids, search_term) when is_list(inventory_ids) do
-    search_term = String.downcase(search_term)
-
     # Pattern matches: starts with term OR has space before term
     # "sw" matches "sword" and "swift dagger"
     start_pattern = "#{search_term}%"
@@ -408,11 +406,9 @@ defmodule Realms.Game do
       # Matches "Barfos", "Sir Bartholomew", etc.
   """
   def online_players_by_name_prefix(text) do
-    search_term = String.downcase(text)
-
     # Pattern matches: starts with term OR has space before term
-    start_pattern = "#{search_term}%"
-    word_pattern = "% #{search_term}%"
+    start_pattern = "#{text}%"
+    word_pattern = "% #{text}%"
 
     Player
     |> where([u], u.connection_status == :online)
