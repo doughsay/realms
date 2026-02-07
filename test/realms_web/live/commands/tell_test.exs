@@ -98,7 +98,10 @@ defmodule RealmsWeb.Commands.TellTest do
 
       send_command(sender, "tell bar Hello")
 
-      assert_eventual_output(sender, "Multiple matching players. You'll have to be more specific.")
+      assert_eventual_output(
+        sender,
+        "Multiple matching players. You'll have to be more specific."
+      )
     end
   end
 end
