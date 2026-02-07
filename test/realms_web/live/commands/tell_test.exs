@@ -59,7 +59,7 @@ defmodule RealmsWeb.Commands.TellTest do
 
       send_command(view, "tell nobody Hello")
 
-      assert_eventual_output(view, "Cannot find \"nobody\" online")
+      assert_eventual_output(view, "Cannot find \"nobody\" online.")
     end
 
     test "handles missing message" do
@@ -98,8 +98,7 @@ defmodule RealmsWeb.Commands.TellTest do
 
       send_command(sender, "tell bar Hello")
 
-      assert_eventual_output(sender, "Multiple matching players")
-      assert_eventual_output(sender, "be more specific")
+      assert_eventual_output(sender, "Multiple matching players. You'll have to be more specific.")
     end
   end
 end

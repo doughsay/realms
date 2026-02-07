@@ -25,8 +25,7 @@ defmodule RealmsWeb.Commands.GetTest do
 
       view
       |> send_command("get banana")
-      |> assert_eventual_output("don't see")
-      |> assert_eventual_output("banana")
+      |> assert_eventual_output("You don't see 'banana' here.")
     end
 
     test "players in same room see pickup message" do
@@ -43,8 +42,7 @@ defmodule RealmsWeb.Commands.GetTest do
       send_command(player1_view, "get sword")
 
       # Observer should see pickup action
-      assert_eventual_output(player2_view, "Alice")
-      assert_eventual_output(player2_view, "sword")
+      assert_eventual_output(player2_view, "Alice picks up sword.")
     end
 
     test "cannot pick up item already in inventory" do
@@ -67,8 +65,7 @@ defmodule RealmsWeb.Commands.GetTest do
 
       view
       |> send_command("get sword")
-      |> assert_eventual_output("Multiple items match")
-      |> assert_eventual_output("Be more specific")
+      |> assert_eventual_output("Multiple items match 'sword'. Be more specific.")
     end
 
     test "can match items using multiple words at start of name" do

@@ -25,8 +25,7 @@ defmodule RealmsWeb.Commands.DropTest do
 
       view
       |> send_command("drop banana")
-      |> assert_eventual_output("aren't carrying")
-      |> assert_eventual_output("banana")
+      |> assert_eventual_output("You aren't carrying 'banana'.")
     end
 
     test "players in same room see drop message" do
@@ -44,8 +43,7 @@ defmodule RealmsWeb.Commands.DropTest do
       send_command(player1_view, "drop apple")
 
       # Observer should see drop action
-      assert_eventual_output(player2_view, "Alice")
-      assert_eventual_output(player2_view, "apple")
+      assert_eventual_output(player2_view, "Alice drops apple.")
     end
 
     test "cannot drop item from room" do
@@ -68,8 +66,7 @@ defmodule RealmsWeb.Commands.DropTest do
 
       view
       |> send_command("drop potion")
-      |> assert_eventual_output("Multiple items match")
-      |> assert_eventual_output("Be more specific")
+      |> assert_eventual_output("Multiple items match 'potion'. Be more specific.")
     end
   end
 end

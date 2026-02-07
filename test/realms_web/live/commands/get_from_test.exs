@@ -28,8 +28,7 @@ defmodule RealmsWeb.Commands.GetFromTest do
 
       view
       |> send_command("get banana from chest")
-      |> assert_eventual_output("don't see")
-      |> assert_eventual_output("banana")
+      |> assert_eventual_output("You don't see 'banana' in the chest.")
     end
 
     test "shows error when container not found" do
@@ -38,8 +37,7 @@ defmodule RealmsWeb.Commands.GetFromTest do
 
       view
       |> send_command("get apple from chest")
-      |> assert_eventual_output("not holding")
-      |> assert_eventual_output("chest")
+      |> assert_eventual_output("You're not holding 'chest'.")
     end
 
     test "players in room see get action" do
@@ -59,8 +57,7 @@ defmodule RealmsWeb.Commands.GetFromTest do
       send_command(player1_view, "get jewel from chest")
 
       # Observer should see the action
-      assert_eventual_output(player2_view, "Alice")
-      assert_eventual_output(player2_view, "takes")
+      assert_eventual_output(player2_view, "Alice takes something from chest.")
     end
 
     test "works with 'from' preposition" do
@@ -87,8 +84,7 @@ defmodule RealmsWeb.Commands.GetFromTest do
 
       view
       |> send_command("get coin from pouch")
-      |> assert_eventual_output("Multiple items match 'pouch'")
-      |> assert_eventual_output("Be more specific")
+      |> assert_eventual_output("Multiple items match 'pouch'. Be more specific.")
     end
 
     test "shows error when multiple items in container match search term" do
@@ -103,8 +99,7 @@ defmodule RealmsWeb.Commands.GetFromTest do
 
       view
       |> send_command("get potion from backpack")
-      |> assert_eventual_output("Multiple items in backpack match 'potion'")
-      |> assert_eventual_output("Be more specific")
+      |> assert_eventual_output("Multiple items in backpack match 'potion'. Be more specific.")
     end
   end
 end

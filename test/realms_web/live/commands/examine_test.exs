@@ -33,8 +33,7 @@ defmodule RealmsWeb.Commands.ExamineTest do
 
       view
       |> send_command("examine unicorn")
-      |> assert_eventual_output("don't see")
-      |> assert_eventual_output("unicorn")
+      |> assert_eventual_output("You don't see 'unicorn' here.")
     end
 
     test "works with 'x' abbreviation" do
@@ -73,7 +72,7 @@ defmodule RealmsWeb.Commands.ExamineTest do
 
       view
       |> send_command("examine box")
-      |> assert_eventual_output("It is empty")
+      |> assert_eventual_output("It is empty.")
     end
 
     test "shows error when multiple items match search term in same location" do
@@ -86,8 +85,7 @@ defmodule RealmsWeb.Commands.ExamineTest do
 
       view
       |> send_command("examine gem")
-      |> assert_eventual_output("Multiple items match 'gem'")
-      |> assert_eventual_output("Be more specific")
+      |> assert_eventual_output("Multiple items match 'gem'. Be more specific.")
     end
 
     test "shows error when multiple items match across player and room" do
@@ -100,8 +98,7 @@ defmodule RealmsWeb.Commands.ExamineTest do
 
       view
       |> send_command("examine gem")
-      |> assert_eventual_output("Multiple items match 'gem'")
-      |> assert_eventual_output("Be more specific")
+      |> assert_eventual_output("Multiple items match 'gem'. Be more specific.")
     end
 
     test "does not show container messages for non-container items" do

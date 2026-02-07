@@ -29,8 +29,7 @@ defmodule RealmsWeb.Commands.PutTest do
 
       view
       |> send_command("put banana in backpack")
-      |> assert_eventual_output("aren't holding")
-      |> assert_eventual_output("banana")
+      |> assert_eventual_output("You aren't holding 'banana'.")
     end
 
     test "shows error when container not found" do
@@ -41,8 +40,7 @@ defmodule RealmsWeb.Commands.PutTest do
 
       view
       |> send_command("put apple in chest")
-      |> assert_eventual_output("aren't holding")
-      |> assert_eventual_output("chest")
+      |> assert_eventual_output("You aren't holding 'chest'.")
     end
 
     test "shows error when target is not a container" do
@@ -84,8 +82,7 @@ defmodule RealmsWeb.Commands.PutTest do
       send_command(player1_view, "put gem in pouch")
 
       # Observer should see the action
-      assert_eventual_output(player2_view, "Alice")
-      assert_eventual_output(player2_view, "gem")
+      assert_eventual_output(player2_view, "Alice puts gem into pouch.")
     end
 
     test "shows error when multiple items match search term" do
@@ -98,8 +95,7 @@ defmodule RealmsWeb.Commands.PutTest do
 
       view
       |> send_command("put gem in backpack")
-      |> assert_eventual_output("Multiple items match 'gem'")
-      |> assert_eventual_output("Be more specific")
+      |> assert_eventual_output("Multiple items match 'gem'. Be more specific.")
     end
 
     test "shows error when multiple containers match search term" do
@@ -112,8 +108,7 @@ defmodule RealmsWeb.Commands.PutTest do
 
       view
       |> send_command("put apple in pouch")
-      |> assert_eventual_output("Multiple items match 'pouch'")
-      |> assert_eventual_output("Be more specific")
+      |> assert_eventual_output("Multiple items match 'pouch'. Be more specific.")
     end
   end
 end

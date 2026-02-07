@@ -11,7 +11,7 @@ defmodule RealmsWeb.Commands.InventoryTest do
 
       view
       |> send_command("inventory")
-      |> assert_eventual_output("carrying")
+      |> assert_eventual_output("You are carrying:")
     end
 
     test "lists items in player inventory" do
