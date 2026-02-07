@@ -70,5 +70,33 @@ defmodule RealmsWeb.Commands.GetTest do
       |> assert_eventual_output("Multiple items match")
       |> assert_eventual_output("Be more specific")
     end
+
+    test "can match items using multiple words at start of name" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      rusty_sword = create_item_in_room(room, name: "rusty iron sword")
+      create_item_in_room(room, name: "shiny gold sword")
+
+      view
+      |> send_command("get rusty iron")
+      |> assert_eventual_output("You pick up rusty iron sword")
+
+      assert_item_in_location(rusty_sword.id, player.inventory_id)
+    end
+
+    test "can match items using multiple words in middle of name" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      ancient_sword = create_item_in_room(room, name: "ancient rusty iron sword")
+      create_item_in_room(room, name: "new shiny gold sword")
+
+      view
+      |> send_command("get rusty iron")
+      |> assert_eventual_output("You pick up ancient rusty iron sword")
+
+      assert_item_in_location(ancient_sword.id, player.inventory_id)
+    end
   end
 end
