@@ -5,7 +5,7 @@ defmodule Realms.Game do
 
   import Ecto.Query
 
-  alias Realms.Game.{Room, Exit, Player, Item, Inventory, ItemContent}
+  alias Realms.Game.{Room, Exit, Player, Mob, Item, Inventory, ItemContent}
   alias Realms.Repo
 
   require Logger
@@ -501,6 +501,78 @@ defmodule Realms.Game do
     {count, _} = Repo.update_all(query, [])
 
     {:ok, count}
+  end
+
+  # Mob functions
+
+  @doc """
+  Gets a mob by ID. Raises if not found.
+  """
+  def get_mob!(id) do
+    Repo.get!(Mob, id)
+  end
+
+  @doc """
+  Lists all mobs.
+  """
+  def list_all_mobs do
+    Repo.all(Mob)
+  end
+
+  @doc """
+  Lists all mobs currently in a specific room.
+  """
+  def mobs_in_room(room_id) do
+    Mob
+    |> where([m], m.current_room_id == ^room_id)
+    |> Repo.all()
+  end
+
+  @doc """
+  Finds a mob in a room by matching the search term against word prefixes
+  in their name. Case-insensitive. Returns the first match or nil.
+  """
+  def find_mob_in_room(room_id, search_term) do
+    start_pattern = "#{search_term}%"
+    word_pattern = "% #{search_term}%"
+
+    Mob
+    |> where([m], m.current_room_id == ^room_id)
+    |> where([m], ilike(m.name, ^start_pattern) or ilike(m.name, ^word_pattern))
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @doc """
+  Finds a player in a room by matching the search term against word prefixes
+  in their name. Case-insensitive. Excludes the given player_id.
+  Returns the first match or nil.
+  """
+  def find_player_in_room(room_id, search_term, exclude_player_id) do
+    start_pattern = "#{search_term}%"
+    word_pattern = "% #{search_term}%"
+
+    Player
+    |> where([p], p.current_room_id == ^room_id)
+    |> where([p], p.id != ^exclude_player_id)
+    |> where([p], ilike(p.name, ^start_pattern) or ilike(p.name, ^word_pattern))
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  @doc """
+  Creates a mob.
+  """
+  def create_mob(attrs) do
+    tx(fn ->
+      with {:ok, inventory} <- Repo.insert(%Inventory{}) do
+        attrs = Map.put(attrs, :inventory_id, inventory.id)
+
+        %Mob{}
+        |> Mob.changeset(attrs)
+        |> Repo.insert()
+      end
+    end)
   end
 
   # Serializable and retryable transactions
