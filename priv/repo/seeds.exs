@@ -8,6 +8,7 @@ alias Realms.Game
 # Clear existing data
 IO.puts("Clearing existing data...")
 Realms.Repo.delete_all(Realms.Game.Player)
+Realms.Repo.delete_all(Realms.Game.Mob)
 Realms.Repo.delete_all(Realms.Game.Exit)
 Realms.Repo.delete_all(Realms.Game.Room)
 Realms.Repo.delete_all(Realms.Game.Item)
@@ -164,6 +165,20 @@ for content_data <- backpack_contents do
   {:ok, item} = Game.create_item(Map.put(content_data, :location_id, backpack_inventory_id))
   IO.puts("Created item: #{item.name} inside #{backpack.name}")
 end
+
+IO.puts("Creating mobs...")
+
+{:ok, tim} =
+  Game.create_mob(%{
+    name: "Tim",
+    long_name: "Tim the \"Retired\" Adventurer",
+    description:
+      "A wiry old man with one arm, a permanently singed eyebrow, and a look in his eyes that suggests he's seen things he probably shouldn't have survived. His battered armor is held together mostly by optimism and twine.",
+    behavior: "tim_the_retired_adventurer",
+    current_room_id: room_ids[:town_square]
+  })
+
+IO.puts("Created mob: #{tim.name} in Town Square")
 
 for {_, room} <- rooms do
   IO.puts("Created room: #{room.name}")

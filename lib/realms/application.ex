@@ -19,6 +19,11 @@ defmodule Realms.Application do
       {DynamicSupervisor, strategy: :one_for_one, name: Realms.PlayerSupervisor},
       {Task.Supervisor, name: Realms.CommandSupervisor},
 
+      # Mob GenServer infrastructure
+      {Registry, keys: :unique, name: Realms.MobRegistry},
+      {DynamicSupervisor, strategy: :one_for_one, name: Realms.MobSupervisor},
+      Realms.MobStarter,
+
       # Start to serve requests, typically the last entry
       RealmsWeb.Endpoint
     ]
