@@ -77,5 +77,34 @@ defmodule RealmsWeb.Commands.GetFromTest do
 
       assert_item_in_location(coin.id, player.inventory_id)
     end
+
+    test "shows error when multiple containers match search term" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      create_item_in_inventory(player, name: "small pouch", is_container: true)
+      create_item_in_inventory(player, name: "large pouch", is_container: true)
+
+      view
+      |> send_command("get coin from pouch")
+      |> assert_eventual_output("Multiple items match 'pouch'")
+      |> assert_eventual_output("Be more specific")
+    end
+
+    test "shows error when multiple items in container match search term" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      backpack = create_item_in_inventory(player, name: "backpack", is_container: true)
+      backpack_inventory_id = Realms.Game.get_container_inventory_id(backpack)
+
+      item_fixture(%{location_id: backpack_inventory_id, name: "red potion"})
+      item_fixture(%{location_id: backpack_inventory_id, name: "blue potion"})
+
+      view
+      |> send_command("get potion from backpack")
+      |> assert_eventual_output("Multiple items in backpack match 'potion'")
+      |> assert_eventual_output("Be more specific")
+    end
   end
 end

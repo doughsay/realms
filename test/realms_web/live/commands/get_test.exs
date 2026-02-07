@@ -57,5 +57,18 @@ defmodule RealmsWeb.Commands.GetTest do
       |> send_command("get wallet")
       |> assert_eventual_output("don't see")
     end
+
+    test "shows error when multiple items match search term" do
+      room = room_fixture()
+      %{view: view} = connect_player(room: room, name: "Alice")
+
+      create_item_in_room(room, name: "short sword")
+      create_item_in_room(room, name: "long sword")
+
+      view
+      |> send_command("get sword")
+      |> assert_eventual_output("Multiple items match")
+      |> assert_eventual_output("Be more specific")
+    end
   end
 end

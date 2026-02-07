@@ -87,5 +87,33 @@ defmodule RealmsWeb.Commands.PutTest do
       assert_eventual_output(player2_view, "Alice")
       assert_eventual_output(player2_view, "gem")
     end
+
+    test "shows error when multiple items match search term" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      create_item_in_inventory(player, name: "red gem")
+      create_item_in_inventory(player, name: "blue gem")
+      create_item_in_inventory(player, name: "backpack", is_container: true)
+
+      view
+      |> send_command("put gem in backpack")
+      |> assert_eventual_output("Multiple items match 'gem'")
+      |> assert_eventual_output("Be more specific")
+    end
+
+    test "shows error when multiple containers match search term" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      create_item_in_inventory(player, name: "apple")
+      create_item_in_inventory(player, name: "small pouch", is_container: true)
+      create_item_in_inventory(player, name: "large pouch", is_container: true)
+
+      view
+      |> send_command("put apple in pouch")
+      |> assert_eventual_output("Multiple items match 'pouch'")
+      |> assert_eventual_output("Be more specific")
+    end
   end
 end

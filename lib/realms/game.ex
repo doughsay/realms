@@ -93,15 +93,36 @@ defmodule Realms.Game do
   Finds a single item in an inventory by matching the search term against
   word prefixes in the item's name. Case-insensitive.
 
-  Returns {:ok, item} if found, {:error, :no_matching_item} otherwise.
+  Returns {:ok, item} if exactly one match found,
+  {:error, :no_matching_item} if no matches,
+  {:error, :ambiguous} if multiple matches.
 
   ## Examples
 
       find_item_in_inventory(inventory_id, "sw")
       # Matches "rusty iron sword" (matches "sword")
       # Matches "swift dagger" (matches "swift")
+      # Returns {:error, :ambiguous} if both exist
   """
   def find_item_in_inventory(inventory_id, search_term) do
+    find_item_in_inventories([inventory_id], search_term)
+  end
+
+  @doc """
+  Finds a single item across multiple inventories by matching the search term
+  against word prefixes in the item's name. Case-insensitive.
+
+  Returns {:ok, item} if exactly one match found across all inventories,
+  {:error, :no_matching_item} if no matches,
+  {:error, :ambiguous} if multiple matches.
+
+  ## Examples
+
+      find_item_in_inventories([player_inv_id, room_inv_id], "sw")
+      # Searches both player inventory and room inventory
+      # Returns the item if exactly one match across both
+  """
+  def find_item_in_inventories(inventory_ids, search_term) when is_list(inventory_ids) do
     search_term = String.downcase(search_term)
 
     # Pattern matches: starts with term OR has space before term
@@ -110,16 +131,16 @@ defmodule Realms.Game do
     word_pattern = "% #{search_term}%"
 
     Item
-    |> where([i], i.location_id == ^inventory_id)
+    |> where([i], i.location_id in ^inventory_ids)
     |> where(
       [i],
       ilike(i.name, ^start_pattern) or ilike(i.name, ^word_pattern)
     )
-    |> limit(1)
-    |> Repo.one()
+    |> Repo.all()
     |> case do
-      nil -> {:error, :no_matching_item}
-      item -> {:ok, item}
+      [] -> {:error, :no_matching_item}
+      [item] -> {:ok, item}
+      _multiple -> {:error, :ambiguous}
     end
   end
 
@@ -139,11 +160,14 @@ defmodule Realms.Game do
 
   @doc """
   Lists items contained inside another item.
+
+  Returns {:ok, items} if the item is a container,
+  {:error, :not_a_container} if the item cannot hold items.
   """
   def list_items_in_item(%Item{} = container) do
     case Repo.get_by(ItemContent, item_id: container.id) do
-      nil -> []
-      %ItemContent{inventory_id: inventory_id} -> list_items_in_inventory(inventory_id)
+      nil -> {:error, :not_a_container}
+      %ItemContent{inventory_id: inventory_id} -> {:ok, list_items_in_inventory(inventory_id)}
     end
   end
 

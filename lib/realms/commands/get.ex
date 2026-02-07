@@ -31,6 +31,12 @@ defmodule Realms.Commands.Get do
 
       {:error, :no_matching_item} ->
         Messaging.send_to_player(context.player_id, "<red>You don't see '#{name}' here.</>")
+
+      {:error, :ambiguous} ->
+        Messaging.send_to_player(
+          context.player_id,
+          "<red>Multiple items match '#{name}'. Be more specific.</>"
+        )
     end
 
     :ok

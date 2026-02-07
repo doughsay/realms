@@ -36,6 +36,12 @@ defmodule Realms.Commands.Examine do
 
       {:error, :no_matching_item} ->
         Messaging.send_to_player(context.player_id, "<red>You don't see '#{name}' here.</>")
+
+      {:error, :ambiguous} ->
+        Messaging.send_to_player(
+          context.player_id,
+          "<red>Multiple items match '#{name}'. Be more specific.</>"
+        )
     end
 
     :ok
@@ -52,17 +58,18 @@ defmodule Realms.Commands.Examine do
       player = Game.get_player!(player_id)
       room = Game.get_room!(player.current_room_id)
 
-      with {:error, :no_matching_item} <- Game.find_item_in_inventory(player.inventory_id, name),
-           {:error, :no_matching_item} <- Game.find_item_in_inventory(room.inventory_id, name) do
-        {:error, :no_matching_item}
-      else
-        {:ok, item} ->
-          contents = Game.list_items_in_item(item)
-          {:ok, %{item: item, contents: contents}}
+      # Search both player inventory and room at once
+      with {:ok, item} <-
+             Game.find_item_in_inventories([player.inventory_id, room.inventory_id], name) do
+        case Game.list_items_in_item(item) do
+          {:ok, contents} -> {:ok, %{item: item, contents: contents}}
+          {:error, :not_a_container} -> {:ok, %{item: item, contents: nil}}
+        end
       end
     end)
   end
 
+  defp format_contents(nil), do: ""
   defp format_contents([]), do: "\n<white>It is empty.</>"
 
   defp format_contents(items) do

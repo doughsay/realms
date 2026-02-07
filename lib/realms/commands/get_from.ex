@@ -52,10 +52,22 @@ defmodule Realms.Commands.GetFrom do
           "<red>You're not holding '#{container_name}'.</>"
         )
 
+      {:error, :container_ambiguous} ->
+        Messaging.send_to_player(
+          context.player_id,
+          "<red>Multiple items match '#{container_name}'. Be more specific.</>"
+        )
+
       {:error, {:item_not_found, container}} ->
         Messaging.send_to_player(
           context.player_id,
           "<red>You don't see '#{item_name}' in the #{container.name}.</>"
+        )
+
+      {:error, {:item_ambiguous, container}} ->
+        Messaging.send_to_player(
+          context.player_id,
+          "<red>Multiple items in #{container.name} match '#{item_name}'. Be more specific.</>"
         )
     end
 
@@ -84,8 +96,9 @@ defmodule Realms.Commands.GetFrom do
 
   defp find_held_container(inventory_id, name) do
     case Game.find_item_in_inventory(inventory_id, name) do
-      {:error, _} -> {:error, :container_not_found}
       {:ok, container} -> {:ok, container}
+      {:error, :no_matching_item} -> {:error, :container_not_found}
+      {:error, :ambiguous} -> {:error, :container_ambiguous}
     end
   end
 
@@ -94,7 +107,9 @@ defmodule Realms.Commands.GetFrom do
          {:ok, item} <- Game.find_item_in_inventory(inventory_id, name) do
       {:ok, item}
     else
-      _ -> {:error, {:item_not_found, container}}
+      {:error, :not_a_container} -> {:error, {:item_not_found, container}}
+      {:error, :no_matching_item} -> {:error, {:item_not_found, container}}
+      {:error, :ambiguous} -> {:error, {:item_ambiguous, container}}
     end
   end
 end

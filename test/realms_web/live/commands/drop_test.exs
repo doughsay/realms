@@ -58,5 +58,18 @@ defmodule RealmsWeb.Commands.DropTest do
       |> send_command("drop statue")
       |> assert_eventual_output("aren't carrying")
     end
+
+    test "shows error when multiple items in inventory match search term" do
+      room = room_fixture()
+      %{view: view, player: player} = connect_player(room: room, name: "Alice")
+
+      create_item_in_inventory(player, name: "red potion")
+      create_item_in_inventory(player, name: "blue potion")
+
+      view
+      |> send_command("drop potion")
+      |> assert_eventual_output("Multiple items match")
+      |> assert_eventual_output("Be more specific")
+    end
   end
 end

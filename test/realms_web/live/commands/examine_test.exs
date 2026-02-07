@@ -75,5 +75,47 @@ defmodule RealmsWeb.Commands.ExamineTest do
       |> send_command("examine box")
       |> assert_eventual_output("It is empty")
     end
+
+    test "shows error when multiple items match search term in same location" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      # Both in inventory - ambiguous
+      create_item_in_inventory(player, name: "red gem")
+      create_item_in_inventory(player, name: "blue gem")
+
+      view
+      |> send_command("examine gem")
+      |> assert_eventual_output("Multiple items match 'gem'")
+      |> assert_eventual_output("Be more specific")
+    end
+
+    test "shows error when multiple items match across player and room" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      # One in inventory, one in room - still ambiguous across both locations
+      create_item_in_inventory(player, name: "small gem")
+      create_item_in_room(room, name: "large gem")
+
+      view
+      |> send_command("examine gem")
+      |> assert_eventual_output("Multiple items match 'gem'")
+      |> assert_eventual_output("Be more specific")
+    end
+
+    test "does not show container messages for non-container items" do
+      room = room_fixture()
+      %{view: view} = connect_player(room: room, name: "Alice")
+
+      create_item_in_room(room, name: "sword", description: "A sharp blade")
+
+      view
+      |> send_command("examine sword")
+      |> assert_eventual_output("sword")
+      |> assert_eventual_output("A sharp blade")
+      |> assert_no_output("It is empty")
+      |> assert_no_output("contains")
+    end
   end
 end
