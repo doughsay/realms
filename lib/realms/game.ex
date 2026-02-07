@@ -399,15 +399,29 @@ defmodule Realms.Game do
   end
 
   @doc """
-  Lists online players whose names start with the given text.
-  Case-insensitive.
+  Finds online players by matching the search term against word prefixes
+  in their name. Case-insensitive.
+
+  Returns a list of matching players (0, 1, or more).
+
+  ## Examples
+
+      online_players_by_name_prefix("bar")
+      # Matches "Barfos", "Sir Bartholomew", etc.
   """
   def online_players_by_name_prefix(text) do
-    pattern = text <> "%"
+    search_term = String.downcase(text)
+
+    # Pattern matches: starts with term OR has space before term
+    start_pattern = "#{search_term}%"
+    word_pattern = "% #{search_term}%"
 
     Player
-    |> where([u], ilike(u.name, ^pattern))
     |> where([u], u.connection_status == :online)
+    |> where(
+      [u],
+      ilike(u.name, ^start_pattern) or ilike(u.name, ^word_pattern)
+    )
     |> Repo.all()
   end
 
