@@ -25,8 +25,7 @@ defmodule RealmsWeb.Commands.DropTest do
 
       view
       |> send_command("drop banana")
-      |> assert_eventual_output("aren't carrying")
-      |> assert_eventual_output("banana")
+      |> assert_eventual_output("You aren't carrying 'banana'.")
     end
 
     test "players in same room see drop message" do
@@ -44,8 +43,7 @@ defmodule RealmsWeb.Commands.DropTest do
       send_command(player1_view, "drop apple")
 
       # Observer should see drop action
-      assert_eventual_output(player2_view, "Alice")
-      assert_eventual_output(player2_view, "apple")
+      assert_eventual_output(player2_view, "Alice drops apple.")
     end
 
     test "cannot drop item from room" do
@@ -57,6 +55,22 @@ defmodule RealmsWeb.Commands.DropTest do
       view
       |> send_command("drop statue")
       |> assert_eventual_output("aren't carrying")
+    end
+
+    test "drops first item alphabetically when multiple items match" do
+      room = room_fixture()
+      %{view: view, player: player} = connect_player(room: room, name: "Alice")
+
+      red_potion = create_item_in_inventory(player, name: "red potion")
+      blue_potion = create_item_in_inventory(player, name: "blue potion")
+
+      view
+      |> send_command("drop potion")
+      |> assert_eventual_output("You drop blue potion.")
+
+      # Verify blue potion is in room, red potion still in inventory
+      assert_item_in_location(blue_potion.id, room.inventory_id)
+      assert_item_in_location(red_potion.id, player.inventory_id)
     end
   end
 end

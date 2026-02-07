@@ -84,17 +84,18 @@ defmodule Realms.Commands.GetFrom do
 
   defp find_held_container(inventory_id, name) do
     case Game.find_item_in_inventory(inventory_id, name) do
-      {:error, _} -> {:error, :container_not_found}
-      {:ok, container} -> {:ok, container}
+      {:ok, [container | _]} -> {:ok, container}
+      {:error, :no_matching_item} -> {:error, :container_not_found}
     end
   end
 
   defp find_item_in_container(container, name) do
     with {:ok, inventory_id} <- Game.fetch_container_inventory_id(container),
-         {:ok, item} <- Game.find_item_in_inventory(inventory_id, name) do
+         {:ok, [item | _]} <- Game.find_item_in_inventory(inventory_id, name) do
       {:ok, item}
     else
-      _ -> {:error, {:item_not_found, container}}
+      {:error, :not_a_container} -> {:error, {:item_not_found, container}}
+      {:error, :no_matching_item} -> {:error, {:item_not_found, container}}
     end
   end
 end

@@ -33,8 +33,7 @@ defmodule RealmsWeb.Commands.ExamineTest do
 
       view
       |> send_command("examine unicorn")
-      |> assert_eventual_output("don't see")
-      |> assert_eventual_output("unicorn")
+      |> assert_eventual_output("You don't see 'unicorn' here.")
     end
 
     test "works with 'x' abbreviation" do
@@ -73,7 +72,49 @@ defmodule RealmsWeb.Commands.ExamineTest do
 
       view
       |> send_command("examine box")
-      |> assert_eventual_output("It is empty")
+      |> assert_eventual_output("It is empty.")
+    end
+
+    test "examines first item alphabetically when multiple items match" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      # Both in inventory - should pick first alphabetically
+      create_item_in_inventory(player, name: "red gem", description: "A sparkling red gem")
+      create_item_in_inventory(player, name: "blue gem", description: "A brilliant blue gem")
+
+      view
+      |> send_command("examine gem")
+      |> assert_eventual_output("blue gem")
+      |> assert_eventual_output("brilliant blue gem")
+    end
+
+    test "examines first item alphabetically when multiple items match across player and room" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      # One in inventory, one in room - should pick first alphabetically
+      create_item_in_inventory(player, name: "small gem", description: "A tiny gem")
+      create_item_in_room(room, name: "large gem", description: "A huge gem")
+
+      view
+      |> send_command("examine gem")
+      |> assert_eventual_output("large gem")
+      |> assert_eventual_output("huge gem")
+    end
+
+    test "does not show container messages for non-container items" do
+      room = room_fixture()
+      %{view: view} = connect_player(room: room, name: "Alice")
+
+      create_item_in_room(room, name: "sword", description: "A sharp blade")
+
+      view
+      |> send_command("examine sword")
+      |> assert_eventual_output("sword")
+      |> assert_eventual_output("A sharp blade")
+      |> assert_no_output("It is empty")
+      |> assert_no_output("contains")
     end
   end
 end

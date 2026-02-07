@@ -90,36 +90,53 @@ defmodule Realms.Game do
   end
 
   @doc """
-  Finds a single item in an inventory by matching the search term against
+  Finds items in an inventory by matching the search term against
   word prefixes in the item's name. Case-insensitive.
 
-  Returns {:ok, item} if found, {:error, :no_matching_item} otherwise.
+  Returns {:ok, [items]} if one or more matches found (ordered alphabetically by name),
+  {:error, :no_matching_item} if no matches.
 
   ## Examples
 
       find_item_in_inventory(inventory_id, "sw")
       # Matches "rusty iron sword" (matches "sword")
       # Matches "swift dagger" (matches "swift")
+      # Returns {:ok, [sword, dagger]} (alphabetically ordered)
   """
   def find_item_in_inventory(inventory_id, search_term) do
-    search_term = String.downcase(search_term)
+    find_item_in_inventories([inventory_id], search_term)
+  end
 
+  @doc """
+  Finds items across multiple inventories by matching the search term
+  against word prefixes in the item's name. Case-insensitive.
+
+  Returns {:ok, [items]} if one or more matches found across all inventories (ordered alphabetically by name),
+  {:error, :no_matching_item} if no matches.
+
+  ## Examples
+
+      find_item_in_inventories([player_inv_id, room_inv_id], "sw")
+      # Searches both player inventory and room inventory
+      # Returns {:ok, [items]} with all matches across both, ordered alphabetically
+  """
+  def find_item_in_inventories(inventory_ids, search_term) when is_list(inventory_ids) do
     # Pattern matches: starts with term OR has space before term
     # "sw" matches "sword" and "swift dagger"
     start_pattern = "#{search_term}%"
     word_pattern = "% #{search_term}%"
 
     Item
-    |> where([i], i.location_id == ^inventory_id)
+    |> where([i], i.location_id in ^inventory_ids)
     |> where(
       [i],
       ilike(i.name, ^start_pattern) or ilike(i.name, ^word_pattern)
     )
-    |> limit(1)
-    |> Repo.one()
+    |> order_by([i], asc: i.name)
+    |> Repo.all()
     |> case do
-      nil -> {:error, :no_matching_item}
-      item -> {:ok, item}
+      [] -> {:error, :no_matching_item}
+      items -> {:ok, items}
     end
   end
 
@@ -139,11 +156,14 @@ defmodule Realms.Game do
 
   @doc """
   Lists items contained inside another item.
+
+  Returns {:ok, items} if the item is a container,
+  {:error, :not_a_container} if the item cannot hold items.
   """
   def list_items_in_item(%Item{} = container) do
     case Repo.get_by(ItemContent, item_id: container.id) do
-      nil -> []
-      %ItemContent{inventory_id: inventory_id} -> list_items_in_inventory(inventory_id)
+      nil -> {:error, :not_a_container}
+      %ItemContent{inventory_id: inventory_id} -> {:ok, list_items_in_inventory(inventory_id)}
     end
   end
 
@@ -375,15 +395,27 @@ defmodule Realms.Game do
   end
 
   @doc """
-  Lists online players whose names start with the given text.
-  Case-insensitive.
+  Finds online players by matching the search term against word prefixes
+  in their name. Case-insensitive.
+
+  Returns a list of matching players (0, 1, or more).
+
+  ## Examples
+
+      online_players_by_name_prefix("bar")
+      # Matches "Barfos", "Sir Bartholomew", etc.
   """
   def online_players_by_name_prefix(text) do
-    pattern = text <> "%"
+    # Pattern matches: starts with term OR has space before term
+    start_pattern = "#{text}%"
+    word_pattern = "% #{text}%"
 
     Player
-    |> where([u], ilike(u.name, ^pattern))
     |> where([u], u.connection_status == :online)
+    |> where(
+      [u],
+      ilike(u.name, ^start_pattern) or ilike(u.name, ^word_pattern)
+    )
     |> Repo.all()
   end
 

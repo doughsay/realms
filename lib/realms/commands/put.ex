@@ -82,9 +82,8 @@ defmodule Realms.Commands.Put do
     Game.tx(fn ->
       player = Game.get_player!(player_id)
 
-      with {:ok, item} <- find_held_item(player.inventory_id, item_name, :item_not_found),
-           {:ok, container} <-
-             find_held_item(player.inventory_id, container_name, :container_not_found),
+      with {:ok, item} <- find_item(player.inventory_id, item_name),
+           {:ok, container} <- find_container(player.inventory_id, container_name),
            :ok <- check_distinct(item, container),
            :ok <- check_is_container(container),
            {:ok, _} <- Game.move_item_to_item(item, container) do
@@ -93,10 +92,17 @@ defmodule Realms.Commands.Put do
     end)
   end
 
-  defp find_held_item(inventory_id, name, error_type) do
+  defp find_item(inventory_id, name) do
     case Game.find_item_in_inventory(inventory_id, name) do
-      {:error, _} -> {:error, error_type}
-      {:ok, item} -> {:ok, item}
+      {:ok, [item | _]} -> {:ok, item}
+      {:error, :no_matching_item} -> {:error, :item_not_found}
+    end
+  end
+
+  defp find_container(inventory_id, name) do
+    case Game.find_item_in_inventory(inventory_id, name) do
+      {:ok, [item | _]} -> {:ok, item}
+      {:error, :no_matching_item} -> {:error, :container_not_found}
     end
   end
 

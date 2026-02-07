@@ -25,8 +25,7 @@ defmodule RealmsWeb.Commands.GetTest do
 
       view
       |> send_command("get banana")
-      |> assert_eventual_output("don't see")
-      |> assert_eventual_output("banana")
+      |> assert_eventual_output("You don't see 'banana' here.")
     end
 
     test "players in same room see pickup message" do
@@ -43,8 +42,7 @@ defmodule RealmsWeb.Commands.GetTest do
       send_command(player1_view, "get sword")
 
       # Observer should see pickup action
-      assert_eventual_output(player2_view, "Alice")
-      assert_eventual_output(player2_view, "sword")
+      assert_eventual_output(player2_view, "Alice picks up sword.")
     end
 
     test "cannot pick up item already in inventory" do
@@ -56,6 +54,78 @@ defmodule RealmsWeb.Commands.GetTest do
       view
       |> send_command("get wallet")
       |> assert_eventual_output("don't see")
+    end
+
+    test "gets first item alphabetically when multiple items match" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      short_sword = create_item_in_room(room, name: "short sword")
+      long_sword = create_item_in_room(room, name: "long sword")
+
+      view
+      |> send_command("get sword")
+      |> assert_eventual_output("You pick up long sword.")
+
+      # Verify long sword is in inventory, short sword still in room
+      assert_item_in_location(long_sword.id, player.inventory_id)
+      assert_item_in_location(short_sword.id, room.inventory_id)
+    end
+
+    test "can match items using multiple words at start of name" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      rusty_sword = create_item_in_room(room, name: "rusty iron sword")
+      create_item_in_room(room, name: "shiny gold sword")
+
+      view
+      |> send_command("get rusty iron")
+      |> assert_eventual_output("You pick up rusty iron sword")
+
+      assert_item_in_location(rusty_sword.id, player.inventory_id)
+    end
+
+    test "can match items using multiple words in middle of name" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      ancient_sword = create_item_in_room(room, name: "ancient rusty iron sword")
+      create_item_in_room(room, name: "new shiny gold sword")
+
+      view
+      |> send_command("get rusty iron")
+      |> assert_eventual_output("You pick up ancient rusty iron sword")
+
+      assert_item_in_location(ancient_sword.id, player.inventory_id)
+    end
+
+    test "matches items case-insensitively" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      sword = create_item_in_room(room, name: "Shiny Steel Sword")
+
+      # Test with all lowercase
+      view
+      |> send_command("get shiny")
+      |> assert_eventual_output("You pick up Shiny Steel Sword")
+
+      assert_item_in_location(sword.id, player.inventory_id)
+    end
+
+    test "matches items case-insensitively with uppercase search" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      sword = create_item_in_room(room, name: "rusty old sword")
+
+      # Test with all uppercase
+      view
+      |> send_command("get RUSTY")
+      |> assert_eventual_output("You pick up rusty old sword")
+
+      assert_item_in_location(sword.id, player.inventory_id)
     end
   end
 end

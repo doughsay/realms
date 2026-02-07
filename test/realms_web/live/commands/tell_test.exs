@@ -59,7 +59,7 @@ defmodule RealmsWeb.Commands.TellTest do
 
       send_command(view, "tell nobody Hello")
 
-      assert_eventual_output(view, "Cannot find \"nobody\" online")
+      assert_eventual_output(view, "Cannot find \"nobody\" online.")
     end
 
     test "handles missing message" do
@@ -70,6 +70,38 @@ defmodule RealmsWeb.Commands.TellTest do
 
       # Should get usage or error message
       assert_eventual_output(view, "tell")
+    end
+
+    test "can match player by word in middle of name" do
+      room = room_fixture()
+
+      [%{view: sender}, %{view: recipient}] =
+        connect_players([
+          [room: room, name: "Alice"],
+          [room: room, name: "Sir Bartholomew"]
+        ])
+
+      send_command(sender, "tell bart Secret message")
+
+      assert_eventual_output(recipient, "Alice tells you: Secret message")
+    end
+
+    test "shows error when multiple players match" do
+      room = room_fixture()
+
+      [%{view: sender}, _recipient1, _recipient2] =
+        connect_players([
+          [room: room, name: "Alice"],
+          [room: room, name: "Barfos"],
+          [room: room, name: "Sir Bartholomew"]
+        ])
+
+      send_command(sender, "tell bar Hello")
+
+      assert_eventual_output(
+        sender,
+        "Multiple matching players. You'll have to be more specific."
+      )
     end
   end
 end

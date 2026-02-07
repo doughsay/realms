@@ -28,8 +28,7 @@ defmodule RealmsWeb.Commands.GetFromTest do
 
       view
       |> send_command("get banana from chest")
-      |> assert_eventual_output("don't see")
-      |> assert_eventual_output("banana")
+      |> assert_eventual_output("You don't see 'banana' in the chest.")
     end
 
     test "shows error when container not found" do
@@ -38,8 +37,7 @@ defmodule RealmsWeb.Commands.GetFromTest do
 
       view
       |> send_command("get apple from chest")
-      |> assert_eventual_output("not holding")
-      |> assert_eventual_output("chest")
+      |> assert_eventual_output("You're not holding 'chest'.")
     end
 
     test "players in room see get action" do
@@ -59,8 +57,7 @@ defmodule RealmsWeb.Commands.GetFromTest do
       send_command(player1_view, "get jewel from chest")
 
       # Observer should see the action
-      assert_eventual_output(player2_view, "Alice")
-      assert_eventual_output(player2_view, "takes")
+      assert_eventual_output(player2_view, "Alice takes something from chest.")
     end
 
     test "works with 'from' preposition" do
@@ -76,6 +73,43 @@ defmodule RealmsWeb.Commands.GetFromTest do
       |> assert_eventual_output("You take coin from bag.")
 
       assert_item_in_location(coin.id, player.inventory_id)
+    end
+
+    test "uses first container alphabetically when multiple containers match" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      _small_pouch = create_item_in_inventory(player, name: "small pouch", is_container: true)
+      large_pouch = create_item_in_inventory(player, name: "large pouch", is_container: true)
+
+      # Put a coin in the large pouch
+      large_pouch_inv_id = Realms.Game.get_container_inventory_id(large_pouch)
+      coin = item_fixture(%{location_id: large_pouch_inv_id, name: "coin"})
+
+      view
+      |> send_command("get coin from pouch")
+      |> assert_eventual_output("You take coin from large pouch.")
+
+      assert_item_in_location(coin.id, player.inventory_id)
+    end
+
+    test "gets first item alphabetically when multiple items in container match" do
+      room = room_fixture()
+      %{player: player, view: view} = connect_player(room: room, name: "Alice")
+
+      backpack = create_item_in_inventory(player, name: "backpack", is_container: true)
+      backpack_inventory_id = Realms.Game.get_container_inventory_id(backpack)
+
+      red_potion = item_fixture(%{location_id: backpack_inventory_id, name: "red potion"})
+      blue_potion = item_fixture(%{location_id: backpack_inventory_id, name: "blue potion"})
+
+      view
+      |> send_command("get potion from backpack")
+      |> assert_eventual_output("You take blue potion from backpack.")
+
+      # Verify blue potion is in inventory, red potion still in backpack
+      assert_item_in_location(blue_potion.id, player.inventory_id)
+      assert_item_in_location(red_potion.id, backpack_inventory_id)
     end
   end
 end
